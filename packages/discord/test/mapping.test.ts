@@ -62,6 +62,7 @@ describe("mapping", () => {
       kind: "thread",
     });
     expect(m.author.display_name).toBe("Ali");
+    expect(m.author.username).toBe("alice_w");
     expect(m.author.account).toEqual({ platform: "discord", id: "42" });
     expect(m.author.is_bot).toBe(false);
     expect(m.mentions_self).toBe(true);

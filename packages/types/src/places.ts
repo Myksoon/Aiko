@@ -178,7 +178,12 @@ export interface Places {
    * last minute is not written again. An unknown Space is ignored. The platform module calls it
    * for people only, never for bots or her own accounts.
    */
-  memberSeen(space: string, account: AccountRef, name?: string | null): void;
+  memberSeen(
+    space: string,
+    account: AccountRef,
+    name?: string | null,
+    username?: string | null,
+  ): void;
   /** An account left a Space: its membership is marked left (the next time they act there clears it). */
   memberLeft(space: string, account: AccountRef): void;
   /** Calls `listener` after a change; returns the unsubscribe. */

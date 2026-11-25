@@ -373,12 +373,15 @@ export class HostPrompt implements PromptSource {
   }
 
   #present(speakers: readonly Speaker[]): PresentPerson[] {
+    const handles = this.#services.get(HandleDirectoryKey);
     return speakers.map((s) => {
       const handle = this.#agent.handleOf(s.account, s.name);
+      const entry = handles?.resolve(handle) ?? null;
       return {
         account: s.account,
         handle,
-        shown: this.#shown(handle, s.name),
+        username: entry?.username ?? null,
+        shown: this.#shown(handle, s.name, entry?.names),
         person: this.#agent.attitude(s.account)?.person ?? null,
         speaker: false,
       };
@@ -386,8 +389,11 @@ export class HostPrompt implements PromptSource {
   }
 
   /** What `handle`'s accounts are called now besides it: `name` (as the place shows it) and the table's. */
-  #shown(handle: string, name: string): string[] {
-    const table = this.#services.get(HandleDirectoryKey)?.resolve(handle)?.names ?? [];
+  #shown(
+    handle: string,
+    name: string,
+    table: readonly string[] = this.#services.get(HandleDirectoryKey)?.resolve(handle)?.names ?? [],
+  ): string[] {
     return [...new Set([name, ...table])].filter((n) => n.trim() !== "" && n !== handle);
   }
 
@@ -478,8 +484,13 @@ export class HostPrompt implements PromptSource {
     this.#name(input.turn, speakers);
     // Everyone who spoke, by the name shown now: someone renaming is a new block (the names map).
     const everyone = speakersOf(tail.entries, MAX_NAMED + MAX_PEOPLE);
+    const handles = this.#services.get(HandleDirectoryKey);
     const roster = everyone
-      .map((s) => `${s.account.platform}:${s.account.id}=${s.name}`)
+      .map((s) => {
+        const handle = this.#agent.handleOf(s.account, s.name);
+        const entry = handles?.resolve(handle) ?? null;
+        return `${s.account.platform}:${s.account.id}=${s.name}:${entry?.username ?? ""}:${(entry?.names ?? []).join(",")}`;
+      })
       .sort()
       .join(",");
     const slow = await this.#slow(input);
@@ -525,7 +536,13 @@ export class HostPrompt implements PromptSource {
       everyone.filter((e) => !speakers.some((s) => sameAccount(s.account, e.account))),
     )
       .filter((p) => !agent.isBlocked(p.account))
-      .map((p) => personTag({ name: p.handle, shown_as: shownAs(p) }));
+      .map((p) =>
+        personTag({
+          name: p.handle,
+          username: p.username ? safeName(p.username) : null,
+          shown_as: shownAs(p),
+        }),
+      );
     const people = [cards ?? "", ...more].filter((l) => l !== "").join("\n");
     if (people !== "") parts.push(dataBlock("people", PRESENT_TITLE, people));
     const chars = agent.config.mainline.examples_chars;

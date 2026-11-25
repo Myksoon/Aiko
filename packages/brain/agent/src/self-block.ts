@@ -386,6 +386,8 @@ export interface PresentPerson {
   account: AccountRef;
   /** Their stable handle (the name she uses for them). */
   handle: string;
+  /** Permanent platform username (e.g. Discord `@username`), when known. */
+  username?: string | null;
   /**
    * What their accounts are called now, when that is not the handle (a nickname changed since
    * she first saw them): `shown_as`, so a name in the chat maps to the handle. Unset: none.
@@ -409,6 +411,8 @@ const MAX_STANCE = 60;
 /** What the people block says of one person (`personTag`); empty values are left out. */
 export interface PersonAttrs {
   name: string;
+  /** Permanent platform username (e.g. Discord `@username`), when known. */
+  username?: string | null;
   /** What their accounts are called now, when not the handle (`PresentPerson.shown`). */
   shown_as?: string | null;
   /** 朋友, 認識, ... */
@@ -446,8 +450,17 @@ export function shownAs(p: Pick<PresentPerson, "handle" | "shown">): string | nu
   return shown.length === 0 ? null : shown.join("、");
 }
 
+function personUsername(p: Pick<PresentPerson, "username">): string | null {
+  const raw = p.username?.trim() ?? "";
+  return raw === "" ? null : safeName(raw);
+}
+
 function personAttrs(p: PresentPerson, src: PeopleSources): PersonAttrs | null {
-  const attrs: PersonAttrs = { name: p.handle, shown_as: shownAs(p) };
+  const attrs: PersonAttrs = {
+    name: p.handle,
+    username: personUsername(p),
+    shown_as: shownAs(p),
+  };
   const view = p.person === null ? null : (src.heart?.view(p.person) ?? null);
   if (view !== null) {
     // The heart's row (docs/design/v5-heart.md §2.9): the tier, the level and the slow values as
@@ -471,7 +484,12 @@ function personAttrs(p: PresentPerson, src: PeopleSources): PersonAttrs | null {
   }
   const known = Object.entries(attrs).some(
     ([k, v]) =>
-      k !== "name" && k !== "shown_as" && v !== null && v !== undefined && String(v).trim() !== "",
+      k !== "name" &&
+      k !== "username" &&
+      k !== "shown_as" &&
+      v !== null &&
+      v !== undefined &&
+      String(v).trim() !== "",
   );
   return known ? attrs : null;
 }
@@ -527,8 +545,9 @@ export function peopleBody(present: readonly PresentPerson[], src: PeopleSources
     } catch {
       attrs = null;
     }
-    if (attrs === null) others.push(personTag({ name: p.handle, shown_as: shownAs(p) }));
-    else lines.push(personTag(attrs));
+    if (attrs === null) {
+      others.push(personTag({ name: p.handle, username: personUsername(p), shown_as: shownAs(p) }));
+    } else lines.push(personTag(attrs));
   }
   if (lines.length === 0) return others.join("\n");
   return [`<scale>${BOND_SCALE_LINE}</scale>`, ...lines, ...others].join("\n");

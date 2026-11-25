@@ -88,6 +88,8 @@ export const accounts = sqliteTable(
     person_id: text().references(() => persons.id),
     /** The latest display name; the external id until the account is seen. */
     display_name: text().notNull(),
+    /** Immutable platform username (e.g. Discord `@username`), when known. */
+    username: text(),
     /** One of her own accounts. */
     is_self: integer({ mode: "boolean" }).notNull().default(false),
     first_seen: micros().notNull(),

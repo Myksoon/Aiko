@@ -146,7 +146,7 @@ describe("resolve", () => {
     });
     const members = t.db.orm.select().from(spaceMembers).all();
     expect(members).toEqual([
-      expect.objectContaining({ space_id: place.space_id, roles: [], nick: null }),
+      expect.objectContaining({ space_id: place.space_id, roles: [], nick: "Owen" }),
     ]);
     // The same place again is the same rows; the session's `last_at` moves.
     const before = t.db.orm.select().from(sessions).get();
@@ -591,5 +591,37 @@ describe("memberSeen: acting in a space without writing there", () => {
     expect(t.db.get("SELECT display_name FROM accounts WHERE external_id = '8'")).toEqual({
       display_name: "Erin",
     });
+  });
+
+  it("preserves permanent usernames and per-server nicknames separately per account", () => {
+    const { t, id, places: p } = rig();
+    p.seen("discord", "gA", "Server A");
+    p.seen("discord", "gB", "Server B");
+    id.resolve(ctx("gA", "c1", "channel"), {
+      account: acct("7"),
+      display_name: "光",
+      username: "hikaru_01",
+    });
+    id.resolve(ctx("gB", "c2", "channel"), {
+      account: acct("7"),
+      display_name: "pria kacamata",
+      username: "hikaru_01",
+    });
+    id.resolve(ctx("gB", "c2", "channel"), {
+      account: acct("8"),
+      display_name: "pria Bokek",
+      username: "jaki_real",
+    });
+    expect(t.db.get("SELECT username, display_name FROM accounts WHERE external_id = '7'")).toEqual(
+      {
+        username: "hikaru_01",
+        display_name: "pria kacamata",
+      },
+    );
+    expect(id.memberNicksOf(id.personOf(acct("7"))?.id as PersonId).sort()).toEqual([
+      "pria kacamata",
+      "光",
+    ]);
+    expect(id.memberNicksOf(id.personOf(acct("8"))?.id as PersonId)).toEqual(["pria Bokek"]);
   });
 });

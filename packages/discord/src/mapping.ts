@@ -410,6 +410,7 @@ export function incomingMessage(
       account: account(msg.author.id),
       display_name: displayName(msg.author, msg.member?.nickname ?? null),
       is_bot: msg.author.bot ?? false,
+      ...(msg.author.username ? { username: msg.author.username } : {}),
     },
     text: resolveMentions(text, withUserNames(mentionNames(msg.mentions), text, userNames)),
     mentions_self: mentionsSelf,

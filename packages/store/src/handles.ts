@@ -40,7 +40,7 @@ export function handleKey(account: AccountRef): string {
 
 function parseEntry(value: JsonValue): HandleEntry | null {
   if (!isJsonObject(value)) return null;
-  const { handle, person, account, display_name, created_at } = value;
+  const { handle, person, account, display_name, username, created_at } = value;
   if (typeof handle !== "string" || !isValidHandle(handle)) return null;
   if (typeof display_name !== "string" || typeof created_at !== "string") return null;
   let ref: AccountRef | null = null;
@@ -52,6 +52,7 @@ function parseEntry(value: JsonValue): HandleEntry | null {
     person: typeof person === "string" ? person : null,
     account: ref,
     display_name,
+    ...(typeof username === "string" && username !== "" ? { username } : {}),
     created_at,
   };
 }
@@ -150,13 +151,26 @@ export class StoredHandleDirectory implements PersonHandleDirectory {
    * The account's handle, assigned from `displayName` on first sight. `person`, when the
    * caller knows it, is recorded on the row (so `ofPerson` works).
    */
-  ofAccount(account: AccountRef, displayName: string, person: PersonId | null = null): Handle {
+  ofAccount(
+    account: AccountRef,
+    displayName: string,
+    person: PersonId | null = null,
+    username: string | null = null,
+  ): Handle {
+    const cleanUsername =
+      typeof username === "string" && username.trim() !== "" ? username.trim() : null;
     const existing = this.#byAccount.get(accountRefString(account));
     if (existing) {
+      let dirty = false;
       if (person !== null && existing.person !== person) {
         existing.person = person;
-        this.#save(existing);
+        dirty = true;
       }
+      if (cleanUsername !== null && existing.username !== cleanUsername) {
+        existing.username = cleanUsername;
+        dirty = true;
+      }
+      if (dirty) this.#save(existing);
       return existing.handle;
     }
     const handle = assignHandle(displayName, (h) => this.#byHandle.has(lower(h)));
@@ -165,6 +179,7 @@ export class StoredHandleDirectory implements PersonHandleDirectory {
       person,
       account: { platform: account.platform, id: account.id },
       display_name: displayName,
+      ...(cleanUsername !== null ? { username: cleanUsername } : {}),
       created_at: toTimestamp(this.#clock.now()),
     };
     this.#add(entry);

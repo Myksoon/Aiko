@@ -170,6 +170,11 @@ const ESTABLISHED = `ALTER TABLE \`spaces\` ADD \`established\` integer DEFAULT 
 UPDATE \`spaces\` SET \`established\` = 1;
 `;
 
+// v5: preserve the immutable platform username (e.g. Discord `@username`) on accounts so
+// changing server nicknames across guilds cannot blur distinct people together.
+const ACCOUNT_USERNAME = `ALTER TABLE \`accounts\` ADD \`username\` text;
+`;
+
 /** Persons, accounts, link codes, spaces, rooms, sessions and space members. */
 export const identitySchema: PluginSchema = {
   plugin: "identity",
@@ -178,5 +183,6 @@ export const identitySchema: PluginSchema = {
     { version: 2, name: "places", sql: PLACES },
     { version: 3, name: "members_who_acted", sql: ACTED },
     { version: 4, name: "established", sql: ESTABLISHED },
+    { version: 5, name: "account_username", sql: ACCOUNT_USERNAME },
   ],
 };

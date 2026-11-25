@@ -123,7 +123,11 @@ export interface PeopleStore {
    * Records that an account was seen, creating a person on first sight. Returns the person the
    * account belongs to.
    */
-  upsertAccount(account: AccountRef, displayName: string): Promise<PersonId>;
+  upsertAccount(
+    account: AccountRef,
+    displayName: string,
+    username?: string | null,
+  ): Promise<PersonId>;
   personByAccount(account: AccountRef): Promise<Person | null>;
   /** Every person with their accounts, oldest first (by `created_at`, then id). */
   all(): Promise<Person[]>;

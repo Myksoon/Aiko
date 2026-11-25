@@ -522,6 +522,7 @@ describe("identity v2 (places) on a v1 database", () => {
       ["identity", 2],
       ["identity", 3],
       ["identity", 4],
+      ["identity", 5],
     ]);
     expect(counts(db)).toEqual(before);
     // The applied migration is the one that ran: its checksum is unchanged.
@@ -765,6 +766,7 @@ describe("identity v3 (members who acted) on a v2 database", () => {
       expect(applied.map((m) => [m.plugin, m.name])).toEqual([
         ["identity", "members_who_acted"],
         ["identity", "established"],
+        ["identity", "account_username"],
       ]);
       expect(counts(db)).toEqual(before);
       expect(members(db)).toEqual([
@@ -855,7 +857,10 @@ describe("identity v4 (established) on a v3 database", () => {
       const before = counts();
 
       const applied = migrate(db, [identitySchema]);
-      expect(applied.map((m) => [m.plugin, m.name])).toEqual([["identity", "established"]]);
+      expect(applied.map((m) => [m.plugin, m.name])).toEqual([
+        ["identity", "established"],
+        ["identity", "account_username"],
+      ]);
       expect(counts()).toEqual(before);
       expect(db.all("SELECT id, is_primary, established FROM spaces ORDER BY joined_at")).toEqual([
         { id: a, is_primary: 1, established: 1 },

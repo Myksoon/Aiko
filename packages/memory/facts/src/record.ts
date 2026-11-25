@@ -155,11 +155,15 @@ async function person(
 ): Promise<void> {
   if (!store.people) return;
   try {
-    const person = await store.people.upsertAccount(msg.author.account, msg.author.display_name);
+    const person = await store.people.upsertAccount(
+      msg.author.account,
+      msg.author.display_name,
+      msg.author.username ?? null,
+    );
     // Her stable name for them is fixed the first time she sees them.
     ctx.services
       .get(HandleDirectoryKey)
-      ?.ofAccount(msg.author.account, msg.author.display_name, person);
+      ?.ofAccount(msg.author.account, msg.author.display_name, person, msg.author.username ?? null);
   } catch (error) {
     ctx.log.warn({ err: errorMessage(error) }, "failed to record person");
   }

@@ -29,6 +29,8 @@ export interface PersonCandidate {
   account: AccountRef | null;
   /** What their accounts are called now. */
   shown: readonly string[];
+  /** Permanent platform username (e.g. Discord `@username`), when known. */
+  username?: string | null;
   /** The name at first sight (where the handle came from). */
   first: string | null;
   /** What she calls them (稱呼). */
@@ -56,7 +58,9 @@ export function nameKey(name: string): string {
 
 /** Every name of `c` but the handles, as keys. */
 function otherNames(c: PersonCandidate): string[] {
-  return [...c.shown, c.first ?? "", c.call ?? ""].map(nameKey).filter((k) => k !== "");
+  return [...c.shown, c.first ?? "", c.call ?? "", c.username ?? ""]
+    .map(nameKey)
+    .filter((k) => k !== "");
 }
 
 function handleKeys(c: PersonCandidate): string[] {
@@ -122,7 +126,14 @@ export function describePerson(c: PersonCandidate): string {
     c.call !== null && shownNames(c.handle, [...c.shown, c.call]).length > shown.length
       ? `(你叫他「${safeName(c.call, 16)}」)`
       : "";
-  return `「${safeName(c.handle)}」${now}${call}`;
+  const uname = c.username?.trim() ?? "";
+  const username =
+    uname !== "" &&
+    nameKey(uname) !== nameKey(c.handle) &&
+    !shown.some((n) => nameKey(n) === nameKey(uname))
+      ? `(@${safeName(uname)})`
+      : "";
+  return `「${safeName(c.handle)}」${username}${now}${call}`;
 }
 
 /**
@@ -155,6 +166,7 @@ export function directoryCandidates(
       if (known !== undefined) {
         known.handles = [...(known.handles ?? []), e.handle];
         known.shown = [...known.shown, ...(e.names ?? [])];
+        if (!known.username && e.username) known.username = e.username;
         continue;
       }
     }
@@ -164,6 +176,7 @@ export function directoryCandidates(
       person: e.person,
       account: e.account,
       shown: [...(e.names ?? [])],
+      username: e.username ?? null,
       first: e.display_name,
       call: null,
     };
@@ -196,6 +209,7 @@ export function directoryMatch(
     person: e.person,
     account: e.account,
     shown: [...(e.names ?? [])],
+    username: e.username ?? null,
     first: e.display_name,
     call: null,
   };
@@ -291,7 +305,13 @@ export function namedIn(text: string, candidates: readonly PersonCandidate[]): P
   const flat = text.normalize("NFKC").toLowerCase();
   const found: { span: Span; c: PersonCandidate }[] = [];
   for (const c of candidates) {
-    for (const raw of [c.handle, ...(c.handles ?? []), ...c.shown, c.call ?? ""]) {
+    for (const raw of [
+      c.handle,
+      ...(c.handles ?? []),
+      ...c.shown,
+      c.call ?? "",
+      c.username ?? "",
+    ]) {
       const key = nameKey(raw);
       if (key === "") continue;
       const loose = [...key].length < 2 || ORDINARY_WORDS.has(key);

@@ -70,4 +70,46 @@ describe("people in her prompt", () => {
     expect(text).toContain("「Nobu」(現在叫「Model-9 Lumen」)");
     expect(text).toContain("<turn>Kiri 在叫你");
   });
+
+  it("surfaces permanent username alongside handle and multi-server nicknames", async () => {
+    const rows: HandleEntry[] = [
+      {
+        handle: "Hika",
+        person: "p-hika",
+        account: account("hika"),
+        display_name: "光",
+        username: "hikaru_01",
+        names: ["光", "pria kacamata"],
+        created_at: "2026-11-01T00:00:00.000Z",
+      },
+      {
+        handle: "JAKI",
+        person: "p-jaki",
+        account: account("jaki"),
+        display_name: "pria Bokek",
+        username: "jaki_real",
+        names: ["pria Bokek"],
+        created_at: "2026-11-01T00:00:00.000Z",
+      },
+    ];
+    const dir: HandleDirectory = {
+      ofAccount: (a, name) => rows.find((r) => r.account?.id === a.id)?.handle ?? name,
+      ofPerson: (p) => rows.find((r) => r.person === p)?.handle ?? null,
+      resolve: (h) => rows.find((r) => r.handle === h) ?? null,
+      list: () => rows,
+    };
+    const rig = await Rig.create({
+      provide: (sup) => sup.services.provide("app", HandleDirectoryKey, dir),
+    });
+    rig.say(line(C1, "hika", "halooo", as("hika", "pria kacamata")));
+    rig.model.push(says("halooo"));
+    rig.say(mention(C1, "jaki", "@她 hai @hikaru_01"));
+    await until(() => rig.sink.texts().length === 1, 3_000, "the answer");
+    const text = textOf(rig.model.requests[0]);
+    expect(text).toContain(
+      '<person name="Hika" username="hikaru_01" shown_as="pria kacamata、光"/>',
+    );
+    expect(text).toContain('<person name="JAKI" username="jaki_real" shown_as="pria Bokek"/>');
+    expect(text).toContain("「Hika」(@hikaru_01)(現在叫「光」、「pria kacamata」)");
+  });
 });

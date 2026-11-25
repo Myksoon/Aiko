@@ -9619,6 +9619,12 @@
         },
         "is_bot": {
           "type": "boolean"
+        },
+        "username": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [

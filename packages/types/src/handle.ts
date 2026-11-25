@@ -30,6 +30,8 @@ export interface HandleEntry {
   account: AccountRef | null;
   /** The display name it was made from (the handle does not follow later renames). */
   display_name: string;
+  /** Permanent platform username (e.g. Discord `@username`), when known. */
+  username?: string | null;
   /**
    * What the person's accounts are called now (a server nickname they changed since first
    * sight), when the directory knows. The handle and `display_name` never follow a rename; a
@@ -48,7 +50,12 @@ export interface HandleDirectory {
    * The account's handle, assigned from `displayName` (and persisted) on first sight. A caller
    * that knows which person the account belongs to passes it, so `ofPerson` can answer.
    */
-  ofAccount(account: AccountRef, displayName: string, person?: PersonId | null): Handle;
+  ofAccount(
+    account: AccountRef,
+    displayName: string,
+    person?: PersonId | null,
+    username?: string | null,
+  ): Handle;
   /** The person's handle, `null` when none of their accounts was seen yet. */
   ofPerson(person: PersonId): Handle | null;
   /** The row of `handle` (exact match), or `null`. */

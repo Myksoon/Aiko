@@ -28,8 +28,9 @@ export async function knownNames(services: ServiceLookup): Promise<KnownName[] |
     }
   }
   for (const entry of handles?.list() ?? []) {
-    const { handle, display_name, person, account } = entry;
+    const { handle, display_name, username, person, account } = entry;
     out.push({ name: handle, person, account }, { name: display_name, person, account });
+    if (username != null && username !== "") out.push({ name: username, person, account });
     // What their accounts are called now (a nickname changed since the handle was made).
     for (const name of entry.names ?? []) out.push({ name, person, account });
   }

@@ -36,7 +36,13 @@ export const MessageRefSchema = z
 export type MessageRef = z.output<typeof MessageRefSchema>;
 
 export const AuthorSchema = z
-  .object({ account: AccountRefSchema, display_name: z.string(), is_bot: z.boolean() })
+  .object({
+    account: AccountRefSchema,
+    display_name: z.string(),
+    is_bot: z.boolean(),
+    /** Immutable platform handle/username (e.g. Discord `@username`), when distinct or known. */
+    username: z.string().nullable().optional(),
+  })
   .meta({ id: "WireAuthor" });
 export type Author = z.output<typeof AuthorSchema>;
 

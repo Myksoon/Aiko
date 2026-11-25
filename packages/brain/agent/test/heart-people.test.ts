@@ -63,6 +63,21 @@ describe("block 4 from the heart", () => {
     ]);
   });
 
+  it("includes username on person tags without turning a stranger into a known card", () => {
+    const body = peopleBody(
+      [
+        { ...present("ming", "p1", true), username: "ming_99" },
+        { ...present("guest", null), username: "guest_01", shown: ["Guest Nick"] },
+      ],
+      { heart: heart([view("p1")]) },
+    );
+    expect(body.split("\n")).toEqual([
+      expect.stringMatching(/^<scale>/),
+      '<person name="ming" username="ming_99" relation="好朋友" level="60/1000" trust="信任" familiar="熟" respect="欣賞" ease="自在" rapport="有點默契" call_as="阿明" impression="很會煮飯的人" stance="嘴上嫌他,其實很照顧"/>',
+      '<person name="guest" username="guest_01" shown_as="Guest Nick"/>',
+    ]);
+  });
+
   it("leaves a blocked person out, and says nothing of how warm she is now", () => {
     const body = peopleBody([present("bad", "p2"), present("ming", "p1")], {
       heart: heart([view("p2", { blocked: true }), view("p1", { warmth: 0.9, grudge: 0.8 })]),

@@ -418,13 +418,16 @@ export class GatewayBridge {
     try {
       // A server not recorded yet (or marked left) is recorded, as a message there would.
       const space = places.ofGuild(PLATFORM, guild)?.id ?? places.seen(PLATFORM, guild, null);
-      places.memberSeen(space, account(user.id), displayName(user, nick));
+      places.memberSeen(space, account(user.id), displayName(user, nick), user.username || null);
     } catch (error) {
       log.warn({ guild, error: errorMessage(error) }, "cannot record a server's member");
     }
   }
 
   onMember(member: GuildMemberLike, left: boolean): void {
+    if (!left && member.user) {
+      this.memberActed(member.guild.id, member.user, member.nickname ?? null);
+    }
     this.ctx.publish(BusEvents.PlatformMember, memberUpdate(member, left));
   }
 

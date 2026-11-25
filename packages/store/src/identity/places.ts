@@ -173,8 +173,13 @@ export class SpacePlaces implements Places {
     this.#identity.leftSpace(platform, externalId);
   }
 
-  memberSeen(space: string, account: AccountRef, name?: string | null): void {
-    this.#identity.memberSeen(space, account, name ?? null);
+  memberSeen(
+    space: string,
+    account: AccountRef,
+    name?: string | null,
+    username?: string | null,
+  ): void {
+    this.#identity.memberSeen(space, account, name ?? null, username ?? null);
   }
 
   memberLeft(space: string, account: AccountRef): void {

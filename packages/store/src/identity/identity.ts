@@ -51,6 +51,7 @@ export interface Place {
 export interface PlaceAuthor {
   account: AccountRef;
   display_name: string;
+  username?: string | null;
 }
 
 export interface ResolveOptions {
@@ -203,6 +204,17 @@ export class Identity {
       .all();
   }
 
+  /** Distinct per-space nicknames recorded across a person's accounts. */
+  memberNicksOf(person: PersonId): string[] {
+    const rows = this.#db.orm
+      .selectDistinct({ nick: spaceMembers.nick })
+      .from(spaceMembers)
+      .innerJoin(accounts, eq(accounts.id, spaceMembers.account_id))
+      .where(and(eq(accounts.person_id, person), sql`${spaceMembers.nick} IS NOT NULL`))
+      .all();
+    return rows.map((r) => r.nick).filter((n): n is string => typeof n === "string" && n !== "");
+  }
+
   /** Every person not merged into another, oldest first. */
   persons(): PersonRow[] {
     return this.#db.orm
@@ -271,15 +283,18 @@ export class Identity {
    * (`linked_by = 'first_sight'`) with a handle from the name. A person that was only known by an
    * unseen account's id (someone set a choice before speaking) takes the real name now.
    */
-  see(ref: AccountRef, displayName: string): PersonRow {
+  see(ref: AccountRef, displayName: string, username: string | null = null): PersonRow {
     return this.#db.tx(() => {
       const at = this.#now();
       const found = this.account(ref);
       const unseen = found !== null && found.display_name === found.external_id;
+      const cleanUsername =
+        typeof username === "string" && username.trim() !== "" ? username.trim() : null;
+      const usernameSet = cleanUsername !== null ? { username: cleanUsername } : {};
       if (found?.person_id != null) {
         this.#db.orm
           .update(accounts)
-          .set({ display_name: displayName, last_seen: at })
+          .set({ display_name: displayName, last_seen: at, ...usernameSet })
           .where(eq(accounts.id, found.id))
           .run();
         const person = this.person(found.person_id);
@@ -294,7 +309,7 @@ export class Identity {
       if (found) {
         this.#db.orm
           .update(accounts)
-          .set({ ...linked, display_name: displayName, last_seen: at })
+          .set({ ...linked, display_name: displayName, last_seen: at, ...usernameSet })
           .where(eq(accounts.id, found.id))
           .run();
       } else {
@@ -305,6 +320,7 @@ export class Identity {
             platform: ref.platform,
             external_id: ref.id,
             display_name: displayName,
+            username: cleanUsername,
             first_seen: at,
             last_seen: at,
             ...linked,
@@ -582,13 +598,18 @@ export class Identity {
    * `left` mark goes (acting there means they are there). The one write behind every way of
    * becoming a member: a message (`resolve`) and `memberSeen`.
    */
-  #member(spaceId: string, accountId: string, at: Timestamp): void {
+  #member(spaceId: string, accountId: string, at: Timestamp, nick: string | null = null): void {
+    const cleanNick = typeof nick === "string" && nick.trim() !== "" ? nick.trim() : null;
     this.#db.orm
       .insert(spaceMembers)
-      .values({ space_id: spaceId, account_id: accountId, last_seen: at })
+      .values({ space_id: spaceId, account_id: accountId, nick: cleanNick, last_seen: at })
       .onConflictDoUpdate({
         target: [spaceMembers.space_id, spaceMembers.account_id],
-        set: { last_seen: at, left_at: null },
+        set: {
+          last_seen: at,
+          left_at: null,
+          ...(cleanNick !== null ? { nick: cleanNick } : {}),
+        },
       })
       .run();
   }
@@ -598,23 +619,37 @@ export class Identity {
    * in one of its voice channels): seen like an author (`see`, with `name` when the platform gave
    * one) and made a member, or a member again, as a message would. Called on every interaction, so
    * it writes nothing when the membership is current: not left, seen under `MEMBER_SEEN_MS` ago,
-   * the account already a person's and the name unchanged. An unknown space is ignored.
+   * the account already a person's and the name/username unchanged. An unknown space is ignored.
    */
-  memberSeen(spaceId: string, ref: AccountRef, name: string | null = null): void {
+  memberSeen(
+    spaceId: string,
+    ref: AccountRef,
+    name: string | null = null,
+    username: string | null = null,
+  ): void {
     if (typeof spaceId !== "string" || spaceId === "") return;
     this.#db.tx(() => {
       const at = this.#now();
       const found = this.account(ref);
-      const nameKnown = name === null || name === "" || name === found?.display_name;
-      if (found?.person_id != null && nameKnown) {
+      const cleanName = typeof name === "string" && name.trim() !== "" ? name.trim() : null;
+      const cleanUsername =
+        typeof username === "string" && username.trim() !== "" ? username.trim() : null;
+      const nameKnown = cleanName === null || cleanName === found?.display_name;
+      const usernameKnown = cleanUsername === null || cleanUsername === found?.username;
+      if (found?.person_id != null && nameKnown && usernameKnown) {
         const row = this.#db.orm
-          .select({ left_at: spaceMembers.left_at, last_seen: spaceMembers.last_seen })
+          .select({
+            left_at: spaceMembers.left_at,
+            last_seen: spaceMembers.last_seen,
+            nick: spaceMembers.nick,
+          })
           .from(spaceMembers)
           .where(and(eq(spaceMembers.space_id, spaceId), eq(spaceMembers.account_id, found.id)))
           .get();
         if (
           row !== undefined &&
           row.left_at === null &&
+          (cleanName === null || row.nick === cleanName) &&
           toMicros(at) - toMicros(row.last_seen) < MEMBER_SEEN_MS * 1000
         ) {
           return;
@@ -626,10 +661,10 @@ export class Identity {
         .where(eq(spaces.id, spaceId))
         .get();
       if (space === undefined) return;
-      const shown = name !== null && name !== "" ? name : (found?.display_name ?? ref.id);
-      this.see(ref, shown);
+      const shown = cleanName ?? found?.display_name ?? ref.id;
+      this.see(ref, shown, cleanUsername);
       const account = this.account(ref);
-      if (account !== null) this.#member(spaceId, account.id, at);
+      if (account !== null) this.#member(spaceId, account.id, at, cleanName);
     });
   }
 
@@ -707,7 +742,10 @@ export class Identity {
   resolve(ctx: ContextKey, author: PlaceAuthor | null = null, options: ResolveOptions = {}): Place {
     return this.#db.tx(() => {
       const at = this.#now();
-      const person = author === null ? null : this.see(author.account, author.display_name);
+      const person =
+        author === null
+          ? null
+          : this.see(author.account, author.display_name, author.username ?? null);
       const spaceId =
         ctx.scope === null
           ? null
@@ -755,7 +793,7 @@ export class Identity {
       if (spaceId !== null && author !== null) {
         // Writing there means they are there: a left membership comes back.
         const account = this.account(author.account);
-        if (account !== null) this.#member(spaceId, account.id, at);
+        if (account !== null) this.#member(spaceId, account.id, at, author.display_name);
       }
       return { ...place, session: key };
     });

@@ -42,8 +42,12 @@ function personOf(row: PersonRow, accounts: readonly AccountRow[]): Person {
 export class IdentityPeople implements PeopleStore {
   constructor(private readonly identity: Identity) {}
 
-  async upsertAccount(account: AccountRef, displayName: string): Promise<PersonId> {
-    return this.identity.see(account, displayName).id;
+  async upsertAccount(
+    account: AccountRef,
+    displayName: string,
+    username: string | null = null,
+  ): Promise<PersonId> {
+    return this.identity.see(account, displayName, username).id;
   }
 
   async personByAccount(account: AccountRef): Promise<Person | null> {
@@ -117,25 +121,43 @@ export class IdentityHandles implements PersonHandleDirectory {
   #entry(row: PersonRow): HandleEntry {
     const accounts = this.identity.accountsOf(row.id);
     const first = accounts[0];
+    const username =
+      accounts.find((a) => a.username != null && a.username !== "")?.username ?? null;
+    const names = [
+      ...new Set([...accounts.map((a) => a.display_name), ...this.identity.memberNicksOf(row.id)]),
+    ];
     return {
       handle: row.handle,
       person: row.id,
       account: first === undefined ? null : { platform: first.platform, id: first.external_id },
       display_name: row.name,
-      // The names they go by now: an account's name follows every message, the person's does not.
-      names: accounts.map((a) => a.display_name),
+      ...(username !== null ? { username } : {}),
+      // The names they go by now: an account's name and per-space nicknames follow updates.
+      names,
       created_at: row.created_at,
     };
   }
 
-  ofAccount(account: AccountRef, displayName: string, person: PersonId | null = null): Handle {
+  ofAccount(
+    account: AccountRef,
+    displayName: string,
+    person: PersonId | null = null,
+    username: string | null = null,
+  ): Handle {
     const known = this.identity.personOf(account);
-    if (known !== null) return known.handle;
+    if (known !== null) {
+      const cleanUsername =
+        typeof username === "string" && username.trim() !== "" ? username.trim() : null;
+      if (cleanUsername !== null && this.identity.account(account)?.username !== cleanUsername) {
+        this.identity.see(account, displayName, cleanUsername);
+      }
+      return known.handle;
+    }
     // First sight. A caller that already knows the person links the account to them.
     if (person !== null && this.identity.person(person) !== null) {
       this.identity.link(account, person, "first_sight");
     }
-    return this.identity.see(account, displayName).handle;
+    return this.identity.see(account, displayName, username).handle;
   }
 
   ofPerson(person: PersonId): Handle | null {
