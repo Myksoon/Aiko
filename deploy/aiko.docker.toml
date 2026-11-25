@@ -14,8 +14,9 @@ api_key = "${LLM_API_KEY:-}"
 reasoning_effort = true
 
 [llm.purposes]
-chat = ["deepseek:deepseek-v4.1-flash", "deepseek:deepseek-v4-pro"]
+chat = ["deepseek:deepseek-v4-pro", "deepseek:deepseek-v4.1-flash"]
 review = ["deepseek:deepseek-v4.1-flash", "deepseek:deepseek-v4-pro"]
+watch = ["deepseek:deepseek-v4.1-flash", "deepseek:deepseek-v4-pro"]
 
 [llm.reasoning]
 chat_voice = "off"

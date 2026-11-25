@@ -18,7 +18,7 @@ function Read-SharedText([string]$path) {
 
 $form = New-Object Windows.Forms.Form
 $form.Text = 'Aiko'
-$form.ClientSize = New-Object Drawing.Size(340, 275)
+$form.ClientSize = New-Object Drawing.Size(360, 335)
 $form.FormBorderStyle = 'FixedSingle'
 $form.MaximizeBox = $false
 $form.StartPosition = 'CenterScreen'
@@ -35,16 +35,25 @@ function New-Button($text, $x, $y, $w) {
     $form.Controls.Add($b); $b
 }
 
-$textState     = New-Label 'Text bot: checking...' 18
-$textButton    = New-Button 'Turn on' 220 12 104
-$selfChatState = New-Label 'Self chat: checking...' 62
-$selfChatButton = New-Button 'Turn on' 220 56 104
-$voiceState    = New-Label 'Voice: checking...' 106
-$voiceButton   = New-Button 'Turn on' 220 100 104
-$stopButton    = New-Button 'Stop everything' 16 150 180
-$refreshButton = New-Button 'Refresh' 220 150 104
-$info = New-Label '' 198
-$info.MaximumSize = New-Object Drawing.Size(308, 0)
+$textState      = New-Label 'Text bot: checking...' 18
+$textButton     = New-Button 'Turn on' 240 12 104
+$selfChatState  = New-Label 'Self chat: checking...' 62
+$selfChatButton = New-Button 'Turn on' 240 56 104
+$voiceState     = New-Label 'Voice: checking...' 106
+$voiceButton    = New-Button 'Turn on' 240 100 104
+
+$personaLabel = New-Label 'Persona:' 155
+$personaBox = New-Object Windows.Forms.ComboBox
+$personaBox.Location = New-Object Drawing.Point(82, 151)
+$personaBox.Size = New-Object Drawing.Size(150, 28)
+$personaBox.DropDownStyle = 'DropDownList'
+$form.Controls.Add($personaBox)
+$personaButton = New-Button 'Apply' 240 149 104
+
+$stopButton    = New-Button 'Stop everything' 16 200 212
+$refreshButton = New-Button 'Refresh' 240 200 104
+$info = New-Label '' 248
+$info.MaximumSize = New-Object Drawing.Size(328, 0)
 $info.ForeColor = [Drawing.Color]::DimGray
 
 $script:proc = $null
@@ -57,9 +66,52 @@ $script:coreUp = $false
 $script:textOn = $false
 $script:selfChatOn = $false
 $script:voiceOn = $false
+$script:personaIds = New-Object System.Collections.ArrayList
+
+function Load-Personas() {
+    $presetsDir = Join-Path $Repo 'profiles\aiko\presets'
+    $activeFile = Join-Path $Repo 'profiles\aiko\persona\.active'
+    $activeId = 'kuudere'
+    if (Test-Path $activeFile) {
+        $lines = Read-SharedText $activeFile | Where-Object { $_.Trim() -ne '' }
+        if ($lines.Count -gt 0) { $activeId = $lines[0].Trim() }
+    }
+    $items = @()
+    if (Test-Path $presetsDir) {
+        foreach ($dir in Get-ChildItem -Path $presetsDir -Directory) {
+            $metaFile = Join-Path $dir.FullName 'preset.json'
+            if (Test-Path $metaFile) {
+                try {
+                    $raw = [string]::Join("`n", (Read-SharedText $metaFile))
+                    $meta = $raw | ConvertFrom-Json
+                    $pid = $(if ($meta.id) { [string]$meta.id } else { $dir.Name })
+                    $label = $(if ($meta.label) { [string]$meta.label } else { $pid })
+                    $order = $(if ($null -ne $meta.order) { [int]$meta.order } else { 99 })
+                    $items += [PSCustomObject]@{ Id = $pid; Label = $label; Order = $order }
+                } catch { }
+            }
+        }
+    }
+    $items = @($items | Sort-Object Order, Id)
+    $personaBox.Items.Clear()
+    [void]$script:personaIds.Clear()
+    $selectedIndex = -1
+    for ($i = 0; $i -lt $items.Count; $i++) {
+        [void]$script:personaIds.Add($items[$i].Id)
+        [void]$personaBox.Items.Add($items[$i].Label)
+        if ($items[$i].Id -eq $activeId) { $selectedIndex = $i }
+    }
+    if ($selectedIndex -ge 0) {
+        $personaBox.SelectedIndex = $selectedIndex
+    } elseif ($personaBox.Items.Count -gt 0) {
+        $personaBox.SelectedIndex = 0
+    }
+    $personaBox.Enabled = ($personaBox.Items.Count -gt 0)
+    $personaButton.Enabled = ($personaBox.Items.Count -gt 0)
+}
 
 function Set-Busy([bool]$busy, [string]$message) {
-    foreach ($b in $textButton, $selfChatButton, $voiceButton, $stopButton, $refreshButton) { $b.Enabled = -not $busy }
+    foreach ($b in $textButton, $selfChatButton, $voiceButton, $personaBox, $personaButton, $stopButton, $refreshButton) { $b.Enabled = -not $busy }
     $info.Text = $message
 }
 
@@ -143,6 +195,25 @@ $voiceButton.Add_Click({
         Start-Work 'action' @("up core $VoiceServices") 'Turning voice on (loading her voice takes 1 to 2 minutes)...'
     }
 })
+$personaButton.Add_Click({
+    if ($personaBox.SelectedIndex -lt 0 -or $personaBox.SelectedIndex -ge $script:personaIds.Count) { return }
+    $selectedId = [string]$script:personaIds[$personaBox.SelectedIndex]
+    $selectedLabel = [string]$personaBox.SelectedItem
+    $switchProc = Start-Process -FilePath 'cmd.exe' `
+        -ArgumentList @('/c', "chcp 65001 >nul && node scripts/aiko-persona.mjs use `"$selectedId`" > `"$LogFile`" 2>&1") `
+        -WorkingDirectory $Repo -WindowStyle Hidden -Wait -PassThru
+    $switchOut = @(Read-SharedText $LogFile | Where-Object { $_.Trim() -ne '' })
+    if ($switchProc.ExitCode -ne 0) {
+        $errMsg = $(if ($switchOut.Count -gt 0) { [string]::Join(' ', $switchOut) } else { "exit code $($switchProc.ExitCode)" })
+        $info.Text = "Persona switch failed: $errMsg"
+        return
+    }
+    if ($script:coreUp) {
+        Start-Work 'action' @('restart core') "Persona set to $selectedLabel. Restarting core..."
+    } else {
+        $info.Text = "Persona set to $selectedLabel. Turn on Text bot, Self chat, or Voice to use it."
+    }
+})
 $stopButton.Add_Click({ Start-Work 'action' @('down') 'Stopping everything...' })
 $refreshButton.Add_Click({ Start-Work 'status' @('status') 'Checking...' })
 
@@ -183,6 +254,7 @@ $autoRefreshTimer.Add_Tick({
 })
 $autoRefreshTimer.Start()
 
+Load-Personas
 $form.Add_Shown({ Start-Work 'status' @('status') 'Checking...' })
 [void]$form.ShowDialog()
 $autoRefreshTimer.Stop()
