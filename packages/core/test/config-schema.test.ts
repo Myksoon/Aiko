@@ -95,7 +95,7 @@ describe("the root schema", () => {
 
   it("finds nothing at all in the example files", () => {
     expect(outcomes(file("miyoria.example.toml"))).toEqual({});
-    expect(outcomes(file("deploy/miyoria.docker.toml"))).toEqual({});
+    expect(outcomes(file("deploy/aiko.docker.toml"))).toEqual({});
   });
 
   it("lets unknown sections and keys through everywhere, as the readers do", () => {

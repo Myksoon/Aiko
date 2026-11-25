@@ -43,6 +43,7 @@ import {
   AnimeGifTool,
   DropNoteTool,
   KeepNoteTool,
+  ReactTool,
   TenorGifTool,
 } from "./tools.js";
 import { TimeoutError, timeout } from "./util.js";
@@ -172,6 +173,7 @@ export class AgentModule implements Module {
     if (!own) ctx.log.info("using the app's tool registry");
     this.#tools = tools;
     tools.register(new AnimeGifTool(ctx));
+    tools.register(new ReactTool(ctx));
     const discordBotToken = process.env["DISCORD_BOT_TOKEN"];
     if (discordBotToken) tools.register(new TenorGifTool(ctx, discordBotToken));
     const canvases = new VisualCanvasBook(() => ctx.clock.now());
@@ -259,6 +261,7 @@ export class AgentModule implements Module {
     this.#agent?.mainline.stop();
     this.#agent = null;
     this.#tools.unregister(AnimeGifTool.NAME);
+    this.#tools.unregister(ReactTool.NAME);
     this.#tools.unregister(TenorGifTool.NAME);
     this.#tools.unregister(DrawPictureTool.NAME);
     this.#tools.unregister(KeepNoteTool.NAME);
