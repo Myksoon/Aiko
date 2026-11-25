@@ -245,7 +245,7 @@ const MINUTE_MS = 60_000;
 const ForgetMemoryParams = z.object({
   topic: z
     .string()
-    .describe("對方希望你忘掉的事或關鍵字(若對方要求忘掉關於他的全部記憶則填 \"all\")"),
+    .describe('對方希望你忘掉的事或關鍵字(若對方要求忘掉關於他的全部記憶則填 "all")'),
   confirm: z
     .boolean()
     .describe(
@@ -276,7 +276,7 @@ export class ForgetMemoryTool implements Tool {
   readonly spec: ToolSpec = {
     name: FORGET_MEMORY,
     description:
-      "當說話的人要求你忘掉某件事、從資料庫刪除某段記憶時使用。規則:(1) 第一次一定要傳 confirm=false 先檢查有哪些記憶,並用你平常自然的口氣問對方確不確定(例如 \"u sure? like wipe everything about ...?\");(2) 只有等對方下一句親口確認後,才能傳 confirm=true 真正刪除,系統會同時記下『對方在什麼時間請你忘掉了一件事』(不保留被忘掉的內容)。",
+      '當說話的人要求你忘掉某件事、從資料庫刪除某段記憶時使用。規則:(1) 第一次一定要傳 confirm=false 先檢查有哪些記憶,並用你平常自然的口氣問對方確不確定(例如 "u sure? like wipe everything about ...?");(2) 只有等對方下一句親口確認後,才能傳 confirm=true 真正刪除,系統會同時記下『對方在什麼時間請你忘掉了一件事』(不保留被忘掉的內容)。',
     parameters: toolParameters(ForgetMemoryParams),
   };
   readonly parameters = ForgetMemoryParams;
@@ -368,7 +368,8 @@ export class ForgetMemoryTool implements Tool {
       id: newId(),
       profile: this.#engine.profile,
       kind: "episode",
-      scope: person !== null ? { type: "person", person } : { type: "channel", context: ctx.context },
+      scope:
+        person !== null ? { type: "person", person } : { type: "channel", context: ctx.context },
       subjects: person !== null ? [person] : [],
       content: metaContent,
       tokens: tokenString(metaContent),

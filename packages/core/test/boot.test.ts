@@ -428,7 +428,10 @@ describe("settings", () => {
     expect(moduleEnabled(Config.fromToml("[modules.watch]\nenabled = true"), "watch")).toBe(true);
     expect(moduleEnabled(Config.fromToml(""), "platform.discord.self")).toBe(false);
     expect(
-      moduleEnabled(Config.fromToml('[modules."platform.discord.self"]\nenabled = true'), "platform.discord.self"),
+      moduleEnabled(
+        Config.fromToml('[modules."platform.discord.self"]\nenabled = true'),
+        "platform.discord.self",
+      ),
     ).toBe(true);
   });
 });

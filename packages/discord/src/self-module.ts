@@ -2,6 +2,7 @@
 // (messages, reactions, typing, DMs, images/attachments). Never joins voice, never registers slash
 // commands or handles interactions.
 
+import { Client } from "@lng2004/discord.js-selfbot-v13";
 import { LlmRouterKey, userMessage, withLlmTag } from "@miyoria/llm/llm";
 import {
   defineManifest,
@@ -23,14 +24,14 @@ import {
   ProfileIdKey,
   PromptContributorsKey,
 } from "@miyoria/types";
-import { Client } from "@lng2004/discord.js-selfbot-v13";
 import {
   AMBIENT_PRESENCE_CONTRIBUTOR,
-  ambientPresenceContributor,
   type AmbientPresenceSnapshot,
+  ambientPresenceContributor,
   type PresenceClientLike,
   runAmbientPresenceLoop,
 } from "./ambient-presence.js";
+import { emojiContributor } from "./emoji.js";
 import {
   DESCRIBE_PROMPT,
   DESCRIPTION_PREFIX,
@@ -39,11 +40,10 @@ import {
   type DescriptionStore,
   EmojiDescriber,
 } from "./emoji-describe.js";
-import { emojiContributor } from "./emoji.js";
 import { type AmbientPlaces, perGuild } from "./gate.js";
 import { PLATFORM, parseUserIds } from "./mapping.js";
 import { SHUTDOWN_GRACE_MS } from "./module.js";
-import { SelfGatewayBridge, type SelfClientLike, SelfShared } from "./self-bridge.js";
+import { type SelfClientLike, SelfGatewayBridge, SelfShared } from "./self-bridge.js";
 import {
   type DiscordSelfConfig,
   DiscordSelfConfigSchema,
@@ -67,17 +67,13 @@ export interface DiscordSelfOptions {
 export class DiscordSelfModule implements Module {
   static readonly ID = "platform.discord.self";
 
-  readonly manifest: ModuleManifest = defineManifest(
-    DiscordSelfModule.ID,
-    "Discord self chat",
-    {
-      description: "Discord user account: text chat only (no voice, no slash commands)",
-      icon: "message-circle",
-      category: "platform",
-      optional: ["world"],
-      configSchema: DiscordSelfConfigSchema,
-    },
-  );
+  readonly manifest: ModuleManifest = defineManifest(DiscordSelfModule.ID, "Discord self chat", {
+    description: "Discord user account: text chat only (no voice, no slash commands)",
+    icon: "message-circle",
+    category: "platform",
+    optional: ["world"],
+    configSchema: DiscordSelfConfigSchema,
+  });
 
   readonly #baseDir: string | undefined;
   #running: SelfShared | null = null;
@@ -115,7 +111,10 @@ export class DiscordSelfModule implements Module {
       const contributors = ctx.services.get(PromptContributorsKey);
       if (contributors) {
         contributors.register(
-          ambientPresenceContributor(() => currentPresence, () => ctx.clock.now()),
+          ambientPresenceContributor(
+            () => currentPresence,
+            () => ctx.clock.now(),
+          ),
         );
         this.#unregister.push(() => contributors.unregister(AMBIENT_PRESENCE_CONTRIBUTOR));
       }
@@ -330,9 +329,11 @@ async function runSelfGateway(
       // ignore if gateway already closed
     }
     await withTimeout(
-      Promise.resolve().then(() => client.destroy()).catch((error: unknown) => {
-        ctx.log.debug({ error: errorMessage(error) }, "error while closing the self gateway");
-      }),
+      Promise.resolve()
+        .then(() => client.destroy())
+        .catch((error: unknown) => {
+          ctx.log.debug({ error: errorMessage(error) }, "error while closing the self gateway");
+        }),
       SHUTDOWN_GRACE_MS,
     );
   }

@@ -1356,7 +1356,9 @@ export class MemoryEngine implements FollowupSource {
       }
       const global = fact.subject.type === "named" && fact.global ? (subjects[0] ?? null) : null;
       const factTarget =
-        kind === "self_note" ? noteOf(fact.statement, subjects) : { scope: scope(kind, global), subjects };
+        kind === "self_note"
+          ? noteOf(fact.statement, subjects)
+          : { scope: scope(kind, global), subjects };
       const ownSelfNote = kind === "self_note" && factTarget.subjects.length === 0;
       const factDue =
         expiryOf(kind, fact.statement, fact.valid_hours, this.config, now) ??

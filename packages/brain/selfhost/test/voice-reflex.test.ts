@@ -9,7 +9,9 @@ describe("parseVoiceReflex", () => {
       reply: "oh hey, what's up?",
     });
     expect(
-      parseVoiceReflex("```\nMode: SAY+THINK\nEmotion: THINKING\nReply: \"hmm, let me think...\"\n```"),
+      parseVoiceReflex(
+        '```\nMode: SAY+THINK\nEmotion: THINKING\nReply: "hmm, let me think..."\n```',
+      ),
     ).toEqual({
       mode: "say+think",
       emotion: "thinking",
@@ -18,9 +20,7 @@ describe("parseVoiceReflex", () => {
   });
 
   it("drops invalid emotion tags, strips emojis/markdown, and falls back on bad/long replies", () => {
-    expect(
-      parseVoiceReflex("mode: say\nemotion: ecstatic\nreply: *lol* okay 😊"),
-    ).toEqual({
+    expect(parseVoiceReflex("mode: say\nemotion: ecstatic\nreply: *lol* okay 😊")).toEqual({
       mode: "say",
       emotion: null,
       reply: "lol okay",
@@ -30,9 +30,7 @@ describe("parseVoiceReflex", () => {
       emotion: null,
       reply: "",
     });
-    expect(
-      parseVoiceReflex(`mode: say\nemotion: neutral\nreply: ${"a".repeat(121)}`),
-    ).toEqual({
+    expect(parseVoiceReflex(`mode: say\nemotion: neutral\nreply: ${"a".repeat(121)}`)).toEqual({
       mode: "think",
       emotion: null,
       reply: "",
@@ -52,7 +50,9 @@ describe("runVoiceReflex", () => {
 
   it("returns say / say+think / think from the fast model", async () => {
     const sayLlm = {
-      complete: vi.fn(async () => ({ text: "mode: say\nemotion: neutral\nreply: oh hey" }) as never),
+      complete: vi.fn(
+        async () => ({ text: "mode: say\nemotion: neutral\nreply: oh hey" }) as never,
+      ),
     };
     expect(await runVoiceReflex({ ...baseOpts, llm: sayLlm })).toEqual({
       mode: "say",

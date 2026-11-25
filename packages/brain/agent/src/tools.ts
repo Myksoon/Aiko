@@ -203,9 +203,7 @@ const GIF_MAX_PER_HOUR = 18;
 const GIF_MAX_BYTES = 8 * 1024 * 1024;
 
 const AnimeGifParams = z.object({
-  reaction: z
-    .enum(ANIME_GIF_REACTIONS)
-    .describe("動畫表情類別,挑最貼合當下情緒的一個"),
+  reaction: z.enum(ANIME_GIF_REACTIONS).describe("動畫表情類別,挑最貼合當下情緒的一個"),
 });
 
 function isGifBytes(bytes: Uint8Array): boolean {

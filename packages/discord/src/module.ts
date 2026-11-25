@@ -48,8 +48,8 @@ import {
 import { Client, Events, GatewayIntentBits, Options, Partials } from "discord.js";
 import {
   AMBIENT_PRESENCE_CONTRIBUTOR,
-  ambientPresenceContributor,
   type AmbientPresenceSnapshot,
+  ambientPresenceContributor,
   type PresenceClientLike,
   runAmbientPresenceLoop,
 } from "./ambient-presence.js";
@@ -174,7 +174,10 @@ export class DiscordBotModule implements Module {
       const contributors = ctx.services.get(PromptContributorsKey);
       if (contributors) {
         contributors.register(
-          ambientPresenceContributor(() => currentPresence, () => ctx.clock.now()),
+          ambientPresenceContributor(
+            () => currentPresence,
+            () => ctx.clock.now(),
+          ),
         );
         this.#unregister.push(() => contributors.unregister(AMBIENT_PRESENCE_CONTRIBUTOR));
       }

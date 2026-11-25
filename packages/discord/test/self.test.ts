@@ -6,9 +6,9 @@ import type { ModuleContext } from "@miyoria/runtime/kernel";
 import {
   Events as BusEvents,
   type ContextKey,
+  PlacesKey,
   PlatformHistories,
   PlatformSinks,
-  PlacesKey,
   PresencePrivacyKey,
 } from "@miyoria/types";
 import { ActivityType } from "discord.js";
@@ -25,14 +25,14 @@ import {
   plainTextOfReply,
   resolveSelfToken,
   runAmbientPresenceLoop,
+  type SelfClientLike,
   SelfDiscordHistory,
   SelfDiscordPlaces,
   SelfDiscordSink,
   SelfGatewayBridge,
-  SelfShared,
-  type SelfClientLike,
   type SelfHistoryClientLike,
   type SelfPlacesClientLike,
+  SelfShared,
   type SelfSinkClientLike,
 } from "../src/index.js";
 
@@ -150,7 +150,10 @@ describe("SelfDiscordSink", () => {
       card: {
         accent: "info",
         title: "Panel Title",
-        blocks: [{ type: "text", text: "Line one" }, { type: "muted", text: "Note" }],
+        blocks: [
+          { type: "text", text: "Line one" },
+          { type: "muted", text: "Note" },
+        ],
       },
     };
     expect(plainTextOfReply(cardReply)).toBe("**Panel Title**\nLine one\nNote");
@@ -219,7 +222,9 @@ describe("SelfDiscordHistory and SelfDiscordPlaces", () => {
                       name: "chat",
                       type: "GUILD_TEXT",
                       position: 1,
-                      permissionsFor: () => ({ has: (p: string) => p === "VIEW_CHANNEL" || p === "SEND_MESSAGES" }),
+                      permissionsFor: () => ({
+                        has: (p: string) => p === "VIEW_CHANNEL" || p === "SEND_MESSAGES",
+                      }),
                     },
                   ],
                 },
@@ -307,7 +312,7 @@ describe("SelfGatewayBridge", () => {
     await new Promise((r) => setTimeout(r, 20));
     const msgEvents = published.filter((p) => p.event === BusEvents.PlatformMessageCreated.type);
     expect(msgEvents).toHaveLength(1);
-    expect((msgEvents[0]?.data as { text: string }).text).toBe("yo");
+    expect((msgEvents[0]?.data as { text: string } | undefined)?.text).toBe("yo");
 
     // String activity type maps to enum value
     listeners.get("presenceUpdate")?.(null, {
@@ -320,9 +325,10 @@ describe("SelfGatewayBridge", () => {
     await new Promise((r) => setTimeout(r, 10));
     const presEvents = published.filter((p) => p.event === BusEvents.PlatformPresence.type);
     expect(presEvents).toHaveLength(1);
-    expect((presEvents[0]?.data as { activities: Array<{ type: string }> }).activities[0]?.type).toBe(
-      "playing",
-    );
+    expect(
+      (presEvents[0]?.data as { activities: Array<{ type: string }> } | undefined)?.activities[0]
+        ?.type,
+    ).toBe("playing");
     expect(ActivityType.Playing).toBe(0);
 
     // Module metadata
@@ -401,12 +407,14 @@ describe("SelfGatewayBridge", () => {
     await new Promise((r) => setTimeout(r, 20));
 
     const msgEvt = published.find((p) => p.event === BusEvents.PlatformMessageCreated.type);
-    expect((msgEvt?.data as { author: { display_name: string } }).author.display_name).toBe(
-      "pria kacamata",
-    );
+    expect(
+      (msgEvt?.data as { author: { display_name: string } } | undefined)?.author.display_name,
+    ).toBe("pria kacamata");
 
     const presEvt = published.find((p) => p.event === BusEvents.PlatformPresence.type);
-    expect((presEvt?.data as { display_name: string | null }).display_name).toBe("pria kacamata");
+    expect((presEvt?.data as { display_name: string | null } | undefined)?.display_name).toBe(
+      "pria kacamata",
+    );
 
     // History preserves prototype getter member and falls back to guilds.cache when member is null
     const cachedGuildMsg = {
@@ -442,7 +450,12 @@ describe("SelfGatewayBridge", () => {
                           ? {
                               id: "55",
                               nickname: "pria kacamata",
-                              user: { id: "55", username: "hikaru_user", globalName: "光", bot: false },
+                              user: {
+                                id: "55",
+                                username: "hikaru_user",
+                                globalName: "光",
+                                bot: false,
+                              },
                             }
                           : undefined,
                     },

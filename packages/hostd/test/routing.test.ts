@@ -148,45 +148,41 @@ describe("a service's [routing] in the report", () => {
     },
   );
 
-  it(
-    "skips {voice} reference file checks for non-clone TTS backends and modes",
-    T,
-    async () => {
-      const tables = [
-        "[routing]",
-        'class = "session"',
-        'latency = "realtime"',
-        "[routing.needs]",
-        'files = ["workers/voices/{voice}/ref.wav", "workers/voices/{voice}/ref.txt"]',
-      ].join("\n");
-      const daemon = daemonFor(
-        workspace([
-          fake("tts-clone", "health.cjs", {
-            env: { TTS_DEFAULT_VOICE: "ara" },
-            tables,
-          }),
-          fake("tts-kokoro", "health.cjs", {
-            env: { TTS_DEFAULT_VOICE: "ara", TTS_BACKEND: "kokoro" },
-            tables,
-          }),
-          fake("tts-custom", "health.cjs", {
-            env: { TTS_DEFAULT_VOICE: "ara", TTS_MODE: "custom_voice" },
-            tables,
-          }),
-        ]),
-      );
-      await daemon.start();
-      const clone = (await one(daemon, "tts-clone")).routing;
-      expect(clone?.ready).toBe(false);
-      expect(clone?.reason).toContain("ref.wav");
+  it("skips {voice} reference file checks for non-clone TTS backends and modes", T, async () => {
+    const tables = [
+      "[routing]",
+      'class = "session"',
+      'latency = "realtime"',
+      "[routing.needs]",
+      'files = ["workers/voices/{voice}/ref.wav", "workers/voices/{voice}/ref.txt"]',
+    ].join("\n");
+    const daemon = daemonFor(
+      workspace([
+        fake("tts-clone", "health.cjs", {
+          env: { TTS_DEFAULT_VOICE: "ara" },
+          tables,
+        }),
+        fake("tts-kokoro", "health.cjs", {
+          env: { TTS_DEFAULT_VOICE: "ara", TTS_BACKEND: "kokoro" },
+          tables,
+        }),
+        fake("tts-custom", "health.cjs", {
+          env: { TTS_DEFAULT_VOICE: "ara", TTS_MODE: "custom_voice" },
+          tables,
+        }),
+      ]),
+    );
+    await daemon.start();
+    const clone = (await one(daemon, "tts-clone")).routing;
+    expect(clone?.ready).toBe(false);
+    expect(clone?.reason).toContain("ref.wav");
 
-      const kokoro = (await one(daemon, "tts-kokoro")).routing;
-      expect(kokoro?.ready).toBe(true);
-      expect(kokoro?.reason).toBeUndefined();
+    const kokoro = (await one(daemon, "tts-kokoro")).routing;
+    expect(kokoro?.ready).toBe(true);
+    expect(kokoro?.reason).toBeUndefined();
 
-      const custom = (await one(daemon, "tts-custom")).routing;
-      expect(custom?.ready).toBe(true);
-      expect(custom?.reason).toBeUndefined();
-    },
-  );
+    const custom = (await one(daemon, "tts-custom")).routing;
+    expect(custom?.ready).toBe(true);
+    expect(custom?.reason).toBeUndefined();
+  });
 });

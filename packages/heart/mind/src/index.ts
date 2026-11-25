@@ -88,10 +88,10 @@ export {
   WORLD_STORY_CONTRIBUTOR,
   WORLD_STORY_KEY,
   type WorldEvent,
+  WorldStoryBook,
   type WorldStoryBookOptions,
   type WorldStoryState,
   type WorldVibe,
-  WorldStoryBook,
   worldDoCapability,
 } from "./life/world-story.js";
 export { goalReminder, type MindDeps, MindLoop, type Whereabouts } from "./mind.js";

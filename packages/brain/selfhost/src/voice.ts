@@ -916,7 +916,9 @@ export class VoiceHost implements VoiceRunner {
         if (llm !== undefined && utterance !== "") {
           const recentLines = this.#d.transcript
             .tail(place.session)
-            .entries.filter((e) => (e.kind === "other" || e.kind === "self") && e.redacted_at === null)
+            .entries.filter(
+              (e) => (e.kind === "other" || e.kind === "self") && e.redacted_at === null,
+            )
             .slice(-5, -1)
             .map((e) => `${e.kind === "self" ? "self" : (e.author ?? "other")}: ${e.content}`);
           const reflex = await runVoiceReflex({

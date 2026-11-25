@@ -2,6 +2,7 @@ import { LlmRouterKey } from "@miyoria/llm/llm";
 import { ArtifactStoreKey } from "@miyoria/store";
 import { PlatformSinksKey } from "@miyoria/types";
 import { describe, expect, it, vi } from "vitest";
+import { directReason } from "../src/address.js";
 import {
   AIKO_VISUAL_ANCHOR,
   buildEditImagePrompt,
@@ -17,7 +18,6 @@ import {
   type VisualCanvas,
   VisualCanvasBook,
 } from "../src/index.js";
-import { directReason } from "../src/address.js";
 
 const textCtx = { platform: "discord", scope: "g", channel: "100", kind: "channel" } as const;
 const voiceCtx = { platform: "discord", scope: "g", channel: "200", kind: "voice" } as const;
@@ -29,16 +29,18 @@ type MockLlmComplete = (
   req: { messages?: Array<{ content?: unknown }> },
 ) => Promise<{ text: string }>;
 
-function setup(options: {
-  provider?: "auto" | "gemini" | "openai" | "canvas";
-  apiKey?: string;
-  baseUrl?: string;
-  model?: string;
-  cooldownSecs?: number;
-  maxPerHour?: number;
-  fetchFn?: typeof fetch;
-  llmComplete?: ReturnType<typeof vi.fn<MockLlmComplete>>;
-} = {}) {
+function setup(
+  options: {
+    provider?: "auto" | "gemini" | "openai" | "canvas";
+    apiKey?: string;
+    baseUrl?: string;
+    model?: string;
+    cooldownSecs?: number;
+    maxPerHour?: number;
+    fetchFn?: typeof fetch;
+    llmComplete?: ReturnType<typeof vi.fn<MockLlmComplete>>;
+  } = {},
+) {
   let now = 1_000_000;
   let artSeq = 0;
   const sent: Array<{ text?: string; reply_to?: unknown; attachments?: unknown[] }> = [];
@@ -65,9 +67,14 @@ function setup(options: {
       "discord",
       {
         attachmentLimit: () => 8 * 1024 * 1024,
-        send: vi.fn(async (_context: unknown, message: { text?: string; reply_to?: unknown; attachments?: unknown[] }) => {
-          sent.push(message);
-        }),
+        send: vi.fn(
+          async (
+            _context: unknown,
+            message: { text?: string; reply_to?: unknown; attachments?: unknown[] },
+          ) => {
+            sent.push(message);
+          },
+        ),
       },
     ],
   ]);
@@ -167,7 +174,8 @@ describe("draw_picture", () => {
   });
 
   it("renders persistent sketchbook PNG across new -> continue with preserved layers and image-only send", async () => {
-    const layer1 = '<g id="layer-1"><path d="M220 300 L260 220" stroke="#333" stroke-width="4" fill="none"/></g>';
+    const layer1 =
+      '<g id="layer-1"><path d="M220 300 L260 220" stroke="#333" stroke-width="4" fill="none"/></g>';
     const layer2 = '<g id="layer-2"><circle cx="255" cy="215" r="8" fill="#e56"/></g>';
     const llmComplete = vi
       .fn<MockLlmComplete>()
@@ -216,15 +224,27 @@ describe("draw_picture", () => {
   });
 
   it("uses Gemini image generation and inlineData image-to-image edit for continue", async () => {
-    const fetchMock = vi.fn<MockFetch>(async () =>
-      new Response(
-        JSON.stringify({
-          candidates: [
-            { content: { parts: [{ inlineData: { mimeType: "image/png", data: Buffer.from(PNG_BYTES).toString("base64") } }] } },
-          ],
-        }),
-        { status: 200 },
-      ),
+    const fetchMock = vi.fn<MockFetch>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      inlineData: {
+                        mimeType: "image/png",
+                        data: Buffer.from(PNG_BYTES).toString("base64"),
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
     );
     const { tool, callCtx, advance } = setup({
       provider: "gemini",
@@ -255,11 +275,12 @@ describe("draw_picture", () => {
   });
 
   it("uses OpenAI /images/generations and /images/edits multipart FormData for continue", async () => {
-    const fetchMock = vi.fn<MockFetch>(async () =>
-      new Response(
-        JSON.stringify({ data: [{ b64_json: Buffer.from(PNG_BYTES).toString("base64") }] }),
-        { status: 200 },
-      ),
+    const fetchMock = vi.fn<MockFetch>(
+      async () =>
+        new Response(
+          JSON.stringify({ data: [{ b64_json: Buffer.from(PNG_BYTES).toString("base64") }] }),
+          { status: 200 },
+        ),
     );
     const { tool, callCtx, advance } = setup({
       provider: "openai",
@@ -386,7 +407,10 @@ describe("draw_picture", () => {
       expect(selfiePrompt.prompt).toContain("jet-black long hair");
       expect(selfiePrompt.prompt).toContain("maegami bangs");
 
-      const windowPrompt = buildNewImagePrompt("photo", "raindrops on windowpane with cozy street lights");
+      const windowPrompt = buildNewImagePrompt(
+        "photo",
+        "raindrops on windowpane with cozy street lights",
+      );
       expect(windowPrompt.prompt).not.toContain(AIKO_VISUAL_ANCHOR);
       expect(windowPrompt.prompt).toContain("raindrops on windowpane");
     });
@@ -440,7 +464,9 @@ describe("draw_picture", () => {
       expect(outdoorNight.prompt).not.toContain("pajama shorts");
       expect(outdoorNight.prompt).not.toContain("sleep tee");
       expect(outdoorNight.prompt).not.toContain("plush teddy bear");
-      expect(outdoorNight.prompt).toContain("NO pajamas, NO plushies, and NO bulky over-ear desk headphones");
+      expect(outdoorNight.prompt).toContain(
+        "NO pajamas, NO plushies, and NO bulky over-ear desk headphones",
+      );
       expect(outdoorNight.prompt).toContain("candid night outdoor environment");
     });
 
@@ -466,8 +492,12 @@ describe("draw_picture", () => {
       };
 
       // Follow-up questions and second-person banter
-      expect(isConversationFollowUp(msg("did u even touch grassbruh"), names, activeFacts)).toBe(true);
-      expect(isConversationFollowUp(msg("why do u have headphone on"), names, activeFacts)).toBe(true);
+      expect(isConversationFollowUp(msg("did u even touch grassbruh"), names, activeFacts)).toBe(
+        true,
+      );
+      expect(isConversationFollowUp(msg("why do u have headphone on"), names, activeFacts)).toBe(
+        true,
+      );
       expect(isConversationFollowUp(msg("down for the third?"), names, activeFacts)).toBe(true);
       expect(isConversationFollowUp(msg("kamu lagi ngapain"), names, activeFacts)).toBe(true);
       expect(isConversationFollowUp(msg("妳在幹嘛"), names, activeFacts)).toBe(true);

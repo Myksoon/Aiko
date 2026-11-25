@@ -95,8 +95,8 @@ provider = "auto"
 base_url = "${IMAGE_BASE_URL:-}"
 api_key = "${IMAGE_API_KEY:-}"
 model = "${IMAGE_MODEL:-}"
-cooldown_secs = 60
-max_per_hour = 6
+cooldown_secs = 20
+max_per_hour = 15
 
 [modules.agent.voice]
 default_mode = "normal"

@@ -12,10 +12,10 @@ import {
   type ContextKey,
   contextKeyString,
   type JsonValue,
+  PlatformSinksKey,
   type PromptContributor,
   type PromptRequest,
   type PromptSection,
-  PlatformSinksKey,
 } from "@miyoria/types";
 import { Resvg } from "@resvg/resvg-js";
 import { z } from "zod";
@@ -80,10 +80,7 @@ export class VisualCanvasBook {
         };
   }
 
-  create(
-    context: ContextKey,
-    input: Omit<VisualCanvas, "id" | "updatedAt">,
-  ): VisualCanvas {
+  create(context: ContextKey, input: Omit<VisualCanvas, "id" | "updatedAt">): VisualCanvas {
     const key = contextKeyString(context);
     const live = this.#prune(key);
     const canvas: VisualCanvas = {
@@ -213,9 +210,7 @@ export function getAikoCurrentOutfit(
   const localMs = nowMs + tzOffsetHours * 3_600_000;
   const localDate = new Date(localMs);
   const hour = localDate.getUTCHours();
-  const dayOfYear = Math.floor(
-    (localMs - Date.UTC(localDate.getUTCFullYear(), 0, 0)) / 86_400_000,
-  );
+  const dayOfYear = Math.floor((localMs - Date.UTC(localDate.getUTCFullYear(), 0, 0)) / 86_400_000);
 
   const isNight = hour >= 18 || hour < 6;
   const period = isNight ? "night" : "day";
@@ -327,8 +322,7 @@ export function buildEditImagePrompt(canvas: VisualCanvas, change: string): stri
   ].join("\n");
 }
 
-const SAFE_DRAW_ELEMENT_RE =
-  /<(?:path|circle|ellipse|rect|line|polyline|polygon|text)\b/i;
+const SAFE_DRAW_ELEMENT_RE = /<(?:path|circle|ellipse|rect|line|polyline|polygon|text)\b/i;
 
 /**
  * Extracts and sanitizes a single SVG `<g>` layer returned by a model before compositing it onto
@@ -361,7 +355,10 @@ export function sanitizeSvgLayer(raw: string): string {
     .replace(/<iframe\b[\s\S]*?<\/iframe>/gi, "")
     .replace(/<iframe\b[^>]*\/>/gi, "")
     .replace(/\s+on[a-z0-9_-]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
-    .replace(/\s+(?:xlink:)?href\s*=\s*(?:"\s*(?:https?:|data:|javascript:)[^"]*"|'\s*(?:https?:|data:|javascript:)[^']*')/gi, "")
+    .replace(
+      /\s+(?:xlink:)?href\s*=\s*(?:"\s*(?:https?:|data:|javascript:)[^"]*"|'\s*(?:https?:|data:|javascript:)[^']*')/gi,
+      "",
+    )
     .replace(/javascript:/gi, "");
 
   if (!SAFE_DRAW_ELEMENT_RE.test(cleaned)) {
@@ -435,15 +432,37 @@ function isPngOrJpeg(bytes: Uint8Array): boolean {
 }
 
 const DrawPictureParams = z.object({
-  mode: z.enum(["new", "continue"]).default("new").describe("new 畫一張新的; continue 在原本那張上繼續加進度"),
-  canvas_id: z.string().optional().describe("mode='continue' 時必填,填入要延續的畫布代號(例如 c1)"),
+  mode: z
+    .enum(["new", "continue"])
+    .default("new")
+    .describe("'new' creates a new picture; 'continue' edits/updates an existing canvas."),
+  canvas_id: z
+    .string()
+    .optional()
+    .describe("Required when mode='continue': the canvas id to update (e.g. 'c1')."),
   medium: z
     .enum(["sketch", "pixel", "photo"])
     .default("sketch")
-    .describe("sketch 筆記本草圖/塗鴉; pixel 像素畫; photo 寫實日常照片/自拍視角"),
-  subject: z.string().max(180).optional().describe("mode='new' 時必填:要畫或拍的主題(英文描述最準)"),
-  setting: z.string().max(200).optional().describe("可選:場景、桌面或光線鎖定描述"),
-  change: z.string().max(240).optional().describe("mode='continue' 時必填:這次新增了什麼細節或進度"),
+    .describe(
+      "'photo' for SFW selfies, portraits, or candid everyday snapshots (foto/pap/selfie/pic); 'sketch' for notebook pencil doodles; 'pixel' for pixel art.",
+    ),
+  subject: z
+    .string()
+    .max(180)
+    .optional()
+    .describe(
+      "Required when mode='new': concise English description of the SFW scene, selfie, or drawing subject.",
+    ),
+  setting: z
+    .string()
+    .max(200)
+    .optional()
+    .describe("Optional: setting, room/desk details, or lighting lock."),
+  change: z
+    .string()
+    .max(240)
+    .optional()
+    .describe("Required when mode='continue': what incremental change or detail to add."),
 });
 
 /** Continuity-preserving, anti-slop image & doodle generation tool (`draw_picture`). */
@@ -453,9 +472,12 @@ export class DrawPictureTool implements Tool {
   readonly spec: ToolSpec = {
     name: DrawPictureTool.NAME,
     description:
-      "在文字頻道傳送你畫的圖、像素畫或寫實日常照片(不含文字,要說的話請另外直接打字)。" +
-      "只要答應對方要傳照片、自拍、食物照或塗鴉,必須在這一輪立刻實際呼叫本工具(絕不要只回「gimme a sec」或「等一下」而不呼叫,否則什麼都不會送出)。" +
-      "如果要顯示同一件事的後續進度(例如繼續畫同一隻恐龍),務必用 mode='continue' 並填上 canvas_id(不要重新畫一張無關的圖)。語音頻道不用。",
+      "Generate and send a picture in Discord text chat (image-only; write any caption/reply text normally). " +
+      "You HAVE this capability—never claim you cannot send or generate pictures. " +
+      "Use medium='photo' when asked for a SFW photo, selfie, 'kirim foto', 'pap', or 'send a pic'; use medium='sketch' or 'pixel' for drawings. " +
+      "When anyone asks for a SFW photo, selfie, drawing, or to test your image generation, call this tool immediately in the SAME turn (never just say 'wait'/'bentar' without calling it, and never stubbornly decline normal SFW requests). " +
+      "Only refuse strictly NSFW, nude, lingerie, swimsuit, or sexually explicit requests. " +
+      "To edit or show progress on a recent picture, pass mode='continue' with canvas_id. Not available in voice channels.",
     parameters: toolParameters(DrawPictureParams),
   };
   readonly parameters = DrawPictureParams;
@@ -555,11 +577,7 @@ export class DrawPictureTool implements Tool {
 
     if (backend === "gemini") {
       if (canvas === null) {
-        const built = buildNewImagePrompt(
-          effectiveMedium,
-          input.subject!.trim(),
-          input.setting,
-        );
+        const built = buildNewImagePrompt(effectiveMedium, input.subject!.trim(), input.setting);
         styleLock = built.styleLock;
         pngBytes = await this.#callGemini(built.prompt, null, ctx.signal);
       } else {
@@ -577,11 +595,7 @@ export class DrawPictureTool implements Tool {
       }
     } else if (backend === "openai") {
       if (canvas === null) {
-        const built = buildNewImagePrompt(
-          effectiveMedium,
-          input.subject!.trim(),
-          input.setting,
-        );
+        const built = buildNewImagePrompt(effectiveMedium, input.subject!.trim(), input.setting);
         styleLock = built.styleLock;
         pngBytes = await this.#callOpenAi(built.prompt, null, ctx.signal);
       } else {
@@ -768,7 +782,11 @@ export class DrawPictureTool implements Tool {
       form.append("model", model);
       form.append("prompt", prompt);
       form.append("size", "1024x1024");
-      form.append("image", new Blob([Uint8Array.from(prev.bytes)], { type: prev.mime }), "previous.png");
+      form.append(
+        "image",
+        new Blob([Uint8Array.from(prev.bytes)], { type: prev.mime }),
+        "previous.png",
+      );
       res = await this.#fetch(`${base}/images/edits`, {
         method: "POST",
         headers: { Authorization: `Bearer ${this.#config.api_key}` },

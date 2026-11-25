@@ -15,6 +15,15 @@ export {
   type OpportunityKind,
 } from "./gates.js";
 export { SelfHost, type SelfHostOptions, selfHost } from "./host.js";
+export {
+  type CompactionConfig,
+  CompactionConfigSchema,
+  compactIdleSessions,
+  IDLE_COMPACT_AFTER_MS,
+  IDLE_COMPACT_EVERY_MS,
+  type IdleCompactionOptions,
+  startIdleCompaction,
+} from "./idle-compaction.js";
 export { ADMITTED_NOTES, NOTICE_TOOL } from "./impulse-texts.js";
 export { ImpulseDesk, type ImpulseDeskHost } from "./impulses.js";
 export {
@@ -81,15 +90,6 @@ export { silentWaits, VoiceHost, type VoiceHostDeps, type VoiceLineFacts } from 
 export { type VoiceInput, VoiceLane, type VoiceLaneHost, type VoiceRun } from "./voice-lane.js";
 export { PlaceOutlet, VoiceOutlet, type VoiceOutletHost } from "./voice-outlet.js";
 export { VoicePrompt, type VoiceRoom, voiceReads, WarmValues } from "./voice-prompt.js";
-export {
-  CompactionConfigSchema,
-  type CompactionConfig,
-  IDLE_COMPACT_AFTER_MS,
-  IDLE_COMPACT_EVERY_MS,
-  type IdleCompactionOptions,
-  compactIdleSessions,
-  startIdleCompaction,
-} from "./idle-compaction.js";
 export {
   parseVoiceReflex,
   runVoiceReflex,

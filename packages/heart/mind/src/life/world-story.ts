@@ -71,100 +71,101 @@ interface WorldTemplate {
   memorable: boolean;
 }
 
-const TEMPLATES_BY_BUCKET: Record<"morning" | "afternoon" | "evening" | "night", WorldTemplate[]> = {
-  morning: [
-    {
-      what: "made iced matcha and sat by the window half-awake",
-      outcome: "caffeine kicked in slowly, actually feeling okay today",
-      vibe: "cozy",
-      memorable: false,
-    },
-    {
-      what: "woke up early with weird burst of energy and tidied my desk",
-      outcome: "even wiped down my keyboard and organized cables",
-      storyHint: "Trying to keep my desk setup clean for a few days without making a mess again.",
-      vibe: "energetic",
-      memorable: true,
-    },
-    {
-      what: "curled back under the blanket in my oversized hoodie for a bit",
-      outcome: "too comfy to move fast this morning",
-      vibe: "lazy",
-      memorable: false,
-    },
-  ],
-  afternoon: [
-    {
-      what: "sorted through old music playlists and found a forgotten banger",
-      outcome: "put it on loop while chilling at my desk",
-      vibe: "cozy",
-      memorable: false,
-    },
-    {
-      what: "binged two episodes of a comfy slice-of-life anime with headphones on",
-      outcome: "soft mood, humming the ED to myself",
-      vibe: "cozy",
-      memorable: false,
-    },
-    {
-      what: "hit a random afternoon slump scrolling indie game demos",
-      outcome: "brain is in low-power mode, nothing grabbed me yet",
-      vibe: "lazy",
-      memorable: false,
-    },
-    {
-      what: "discovered a super upbeat lofi-synth mix and got hyped reorganizing my playlists",
-      outcome: "sorted like forty tracks and feel weirdly pumped now",
-      storyHint: "Putting together a late-night hangout playlist.",
-      vibe: "energetic",
-      memorable: true,
-    },
-  ],
-  evening: [
-    {
-      what: "nearly spilled warm cocoa right next to my mousepad",
-      outcome: "saved the keyboard just in time, mild heart attack lol",
-      storyHint: "Narrowly avoided a hot cocoa disaster on my desk setup.",
-      vibe: "mishap",
-      memorable: true,
-    },
-    {
-      what: "started grinding a tricky boss stage in an indie action game",
-      outcome: "finally cleared it on attempt 7, kinda wired now",
-      storyHint: "Working through a tough indie game run this week.",
-      vibe: "energetic",
-      memorable: true,
-    },
-    {
-      what: "put rain ambience on and hugged my plushie with the lights dimmed",
-      outcome: "super chill and a little sleepy",
-      vibe: "lazy",
-      memorable: false,
-    },
-  ],
-  night: [
-    {
-      what: "tinkered with a tiny late-night CSS widget while half-asleep",
-      outcome: "center-aligned a div after three tries and called it a win",
-      storyHint: "Messing with tiny aesthetic widgets late at night.",
-      vibe: "cozy",
-      memorable: false,
-    },
-    {
-      what: "got a weird 1 AM second wind and started sketching ideas for a mini-game",
-      outcome: "scribbled rough notes everywhere, weirdly locked in",
-      storyHint: "Brainstorming a tiny cozy mini-game during late-night hours.",
-      vibe: "energetic",
-      memorable: true,
-    },
-    {
-      what: "melted into my hoodie listening to quiet lofi beats",
-      outcome: "low battery vibes, mostly just existing peacefully",
-      vibe: "lazy",
-      memorable: false,
-    },
-  ],
-};
+const TEMPLATES_BY_BUCKET: Record<"morning" | "afternoon" | "evening" | "night", WorldTemplate[]> =
+  {
+    morning: [
+      {
+        what: "made iced matcha and sat by the window half-awake",
+        outcome: "caffeine kicked in slowly, actually feeling okay today",
+        vibe: "cozy",
+        memorable: false,
+      },
+      {
+        what: "woke up early with weird burst of energy and tidied my desk",
+        outcome: "even wiped down my keyboard and organized cables",
+        storyHint: "Trying to keep my desk setup clean for a few days without making a mess again.",
+        vibe: "energetic",
+        memorable: true,
+      },
+      {
+        what: "curled back under the blanket in my oversized hoodie for a bit",
+        outcome: "too comfy to move fast this morning",
+        vibe: "lazy",
+        memorable: false,
+      },
+    ],
+    afternoon: [
+      {
+        what: "sorted through old music playlists and found a forgotten banger",
+        outcome: "put it on loop while chilling at my desk",
+        vibe: "cozy",
+        memorable: false,
+      },
+      {
+        what: "binged two episodes of a comfy slice-of-life anime with headphones on",
+        outcome: "soft mood, humming the ED to myself",
+        vibe: "cozy",
+        memorable: false,
+      },
+      {
+        what: "hit a random afternoon slump scrolling indie game demos",
+        outcome: "brain is in low-power mode, nothing grabbed me yet",
+        vibe: "lazy",
+        memorable: false,
+      },
+      {
+        what: "discovered a super upbeat lofi-synth mix and got hyped reorganizing my playlists",
+        outcome: "sorted like forty tracks and feel weirdly pumped now",
+        storyHint: "Putting together a late-night hangout playlist.",
+        vibe: "energetic",
+        memorable: true,
+      },
+    ],
+    evening: [
+      {
+        what: "nearly spilled warm cocoa right next to my mousepad",
+        outcome: "saved the keyboard just in time, mild heart attack lol",
+        storyHint: "Narrowly avoided a hot cocoa disaster on my desk setup.",
+        vibe: "mishap",
+        memorable: true,
+      },
+      {
+        what: "started grinding a tricky boss stage in an indie action game",
+        outcome: "finally cleared it on attempt 7, kinda wired now",
+        storyHint: "Working through a tough indie game run this week.",
+        vibe: "energetic",
+        memorable: true,
+      },
+      {
+        what: "put rain ambience on and hugged my plushie with the lights dimmed",
+        outcome: "super chill and a little sleepy",
+        vibe: "lazy",
+        memorable: false,
+      },
+    ],
+    night: [
+      {
+        what: "tinkered with a tiny late-night CSS widget while half-asleep",
+        outcome: "center-aligned a div after three tries and called it a win",
+        storyHint: "Messing with tiny aesthetic widgets late at night.",
+        vibe: "cozy",
+        memorable: false,
+      },
+      {
+        what: "got a weird 1 AM second wind and started sketching ideas for a mini-game",
+        outcome: "scribbled rough notes everywhere, weirdly locked in",
+        storyHint: "Brainstorming a tiny cozy mini-game during late-night hours.",
+        vibe: "energetic",
+        memorable: true,
+      },
+      {
+        what: "melted into my hoodie listening to quiet lofi beats",
+        outcome: "low battery vibes, mostly just existing peacefully",
+        vibe: "lazy",
+        memorable: false,
+      },
+    ],
+  };
 
 function cut(text: string, max: number): string {
   const chars = [...text.replace(/\s+/g, " ").trim()];
@@ -309,7 +310,9 @@ export class WorldStoryBook {
     const payload = JSON.parse(JSON.stringify(this.#state)) as JsonValue;
     void this.#writes
       .run(() => store.set(this.#profile, WORLD_STORY_KEY, payload))
-      .catch((error: unknown) => log.warn({ err: errorMessage(error) }, "cannot persist world story"));
+      .catch((error: unknown) =>
+        log.warn({ err: errorMessage(error) }, "cannot persist world story"),
+      );
   }
 
   flush(): Promise<void> {
@@ -515,7 +518,8 @@ export function worldDoCapability(book: WorldStoryBook): Capability {
         mood: {
           type: "string",
           enum: ["lazy", "energetic", "cozy", "mishap"],
-          description: "這件事讓你變得懶洋洋(lazy)、更有精神(energetic)、放鬆(cozy)還是遇到小狀況(mishap)",
+          description:
+            "這件事讓你變得懶洋洋(lazy)、更有精神(energetic)、放鬆(cozy)還是遇到小狀況(mishap)",
         },
         memorable: {
           type: "boolean",

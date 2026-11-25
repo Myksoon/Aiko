@@ -33,9 +33,12 @@ function setup(nowMs = 1_000_000) {
   const fetchFn = vi.fn(async (url: string | URL | Request) => {
     const target = typeof url === "string" ? url : url.toString();
     if (!target.endsWith(".gif")) {
-      return new Response(JSON.stringify({ results: [{ url: "https://nekos.best/api/v2/shrug/1.gif" }] }), {
-        status: 200,
-      });
+      return new Response(
+        JSON.stringify({ results: [{ url: "https://nekos.best/api/v2/shrug/1.gif" }] }),
+        {
+          status: 200,
+        },
+      );
     }
     return new Response(GIF_BYTES, { status: 200 });
   });
@@ -65,7 +68,10 @@ function setup(nowMs = 1_000_000) {
 describe("anime_gif", () => {
   it("exposes only reaction in its schema (no caption field)", () => {
     const { tool } = setup();
-    const params = tool.spec.parameters as { properties?: Record<string, unknown>; required?: string[] };
+    const params = tool.spec.parameters as {
+      properties?: Record<string, unknown>;
+      required?: string[];
+    };
     expect(Object.keys(params.properties ?? {})).toEqual(["reaction"]);
     expect(params.required).toEqual(["reaction"]);
   });

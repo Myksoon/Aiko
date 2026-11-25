@@ -81,7 +81,14 @@ import { PinnedReader } from "./pinned.js";
 import { RecentPast } from "./recent-install.js";
 import { MemoryRetriever } from "./retrieval.js";
 import { memoryTables } from "./tables.js";
-import { FORGET_MEMORY, ForgetMemoryTool, RECALL, REMEMBER, RecallTool, RememberTool } from "./tools.js";
+import {
+  FORGET_MEMORY,
+  ForgetMemoryTool,
+  RECALL,
+  REMEMBER,
+  RecallTool,
+  RememberTool,
+} from "./tools.js";
 
 /** Delay before the first maintenance check, and the interval of later checks. */
 const MAINTENANCE_FIRST_MS = 60_000;

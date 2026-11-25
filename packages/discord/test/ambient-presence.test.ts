@@ -4,8 +4,8 @@ import {
   ACTIVITY_PLAYING,
   AMBIENT_PRESENCE_CONTRIBUTOR,
   AMBIENT_PRESENCE_PRESETS,
-  ambientPresenceContributor,
   type AmbientPresenceSnapshot,
+  ambientPresenceContributor,
 } from "../src/ambient-presence.js";
 
 describe("ambientPresenceContributor", () => {
@@ -26,7 +26,10 @@ describe("ambientPresenceContributor", () => {
       state: "Clicking circles",
       startedAt: start,
     };
-    const contributor = ambientPresenceContributor(() => snap, () => start + 5 * 60_000);
+    const contributor = ambientPresenceContributor(
+      () => snap,
+      () => start + 5 * 60_000,
+    );
     const sections = await contributor.contribute({} as never);
     expect(sections).toHaveLength(1);
     expect(sections[0]!.body).toContain("Playing osu!");
@@ -45,7 +48,10 @@ describe("ambientPresenceContributor", () => {
       state: "NewJeans",
       startedAt: now,
     };
-    const contributor = ambientPresenceContributor(() => snap, () => now);
+    const contributor = ambientPresenceContributor(
+      () => snap,
+      () => now,
+    );
     const sections = await contributor.contribute({} as never);
     expect(sections).toHaveLength(1);
     expect(sections[0]!.body).toContain("Listening to YouTube Music (Ditto — NewJeans)");

@@ -206,7 +206,9 @@ export function activityBlock(src: SelfSources): string {
   if (snap === null) {
     const base = src.her ? herStatusHint(src.her) : "";
     if (src.discordActivity) {
-      return base ? `${base}\n你現在正在 ${src.discordActivity}。` : `你現在正在 ${src.discordActivity}。`;
+      return base
+        ? `${base}\n你現在正在 ${src.discordActivity}。`
+        : `你現在正在 ${src.discordActivity}。`;
     }
     return base;
   }

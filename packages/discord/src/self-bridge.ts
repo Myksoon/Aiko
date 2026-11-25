@@ -1,7 +1,7 @@
 // Gateway event bridge for the Discord user-account chat adapter (`discord.js-selfbot-v13`).
 // No interactions/slash commands and no voice connection management — text chat only.
 
-import { type UserResolver, UserResolverKey, ReplySinkKey } from "@miyoria/commands";
+import { ReplySinkKey, type UserResolver, UserResolverKey } from "@miyoria/commands";
 import { errorMessage, getLogger, type ModuleContext } from "@miyoria/runtime/kernel";
 import {
   type AccountRef,
@@ -19,7 +19,15 @@ import {
 } from "@miyoria/types";
 import { ActivityType } from "discord.js";
 import { type EmojiLike, EmojiTable, EmojiUsage, serverEmoji } from "./emoji.js";
-import { type Ambient, type AmbientPlaces, ambientChannel, ambientFor, type ChannelIds, messageAllowed, perGuild } from "./gate.js";
+import {
+  type Ambient,
+  type AmbientPlaces,
+  ambientChannel,
+  ambientFor,
+  type ChannelIds,
+  messageAllowed,
+  perGuild,
+} from "./gate.js";
 import {
   account,
   componentsText,
@@ -55,7 +63,13 @@ import {
   type SelfHistoryClientLike,
 } from "./self-history.js";
 import { SelfDiscordSink, type SelfSinkClientLike } from "./self-sink.js";
-import { type ServerSticker, type StickerSourceLike, StickerTable, StickerUsage, serverSticker } from "./stickers.js";
+import {
+  type ServerSticker,
+  type StickerSourceLike,
+  StickerTable,
+  StickerUsage,
+  serverSticker,
+} from "./stickers.js";
 
 const log = getLogger("discord.self");
 
@@ -107,7 +121,9 @@ export interface SelfReactionLike {
 
 export interface SelfClientLike {
   user: { id: string; username: string } | null;
-  guilds: { cache: { values(): Iterable<SelfGuildLike>; get(id: string): SelfGuildLike | undefined } };
+  guilds: {
+    cache: { values(): Iterable<SelfGuildLike>; get(id: string): SelfGuildLike | undefined };
+  };
   channels: {
     cache: { get(id: string): { type?: string | number } | undefined };
     fetch(id: string): Promise<{ type?: string | number } | null>;
@@ -212,11 +228,21 @@ export class SelfGatewayBridge {
       this.guard("typing", () => this.onTyping(client, typing))) as never);
     client.on("messageReactionAdd", ((
       reaction: SelfReactionLike,
-      user: { id: string; bot?: boolean | null; username?: string | null; globalName?: string | null },
+      user: {
+        id: string;
+        bot?: boolean | null;
+        username?: string | null;
+        globalName?: string | null;
+      },
     ) => this.guard("reaction", () => this.onReaction(client, reaction, user, true))) as never);
     client.on("messageReactionRemove", ((
       reaction: SelfReactionLike,
-      user: { id: string; bot?: boolean | null; username?: string | null; globalName?: string | null },
+      user: {
+        id: string;
+        bot?: boolean | null;
+        username?: string | null;
+        globalName?: string | null;
+      },
     ) => this.guard("reaction", () => this.onReaction(client, reaction, user, false))) as never);
     client.on("threadCreate", ((thread: { id: string; type: string | number }) => {
       this.shared.rememberKind(thread.id, selfKindOf(thread.type));
@@ -242,8 +268,10 @@ export class SelfGatewayBridge {
       this.onEmoji(emoji.guild.id, emoji, true)) as never);
     client.on("stickerCreate", ((sticker: StickerSourceLike & { guildId?: string | null }) =>
       this.onSticker(sticker.guildId ?? null, sticker, false)) as never);
-    client.on("stickerUpdate", ((_old: unknown, sticker: StickerSourceLike & { guildId?: string | null }) =>
-      this.onSticker(sticker.guildId ?? null, sticker, false)) as never);
+    client.on("stickerUpdate", ((
+      _old: unknown,
+      sticker: StickerSourceLike & { guildId?: string | null },
+    ) => this.onSticker(sticker.guildId ?? null, sticker, false)) as never);
     client.on("stickerDelete", ((sticker: StickerSourceLike & { guildId?: string | null }) =>
       this.onSticker(sticker.guildId ?? null, sticker, true)) as never);
   }
@@ -343,7 +371,12 @@ export class SelfGatewayBridge {
   async onReaction(
     client: SelfClientLike,
     reaction: SelfReactionLike,
-    user: { id: string; bot?: boolean | null; username?: string | null; globalName?: string | null },
+    user: {
+      id: string;
+      bot?: boolean | null;
+      username?: string | null;
+      globalName?: string | null;
+    },
     added: boolean,
   ): Promise<void> {
     if (this.shared.selfIds.has(user.id) || user.bot) return;
@@ -473,12 +506,7 @@ export class SelfGatewayBridge {
   }
 
   private async onMessage(client: SelfClientLike, msg: SelfMessageLike): Promise<void> {
-    if (
-      msg.type !== "DEFAULT" &&
-      msg.type !== "REPLY" &&
-      msg.type !== 0 &&
-      msg.type !== 19
-    ) {
+    if (msg.type !== "DEFAULT" && msg.type !== "REPLY" && msg.type !== 0 && msg.type !== 19) {
       return;
     }
     const guild = msg.guild ?? (msg.guildId ? client.guilds.cache.get(msg.guildId) : undefined);

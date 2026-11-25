@@ -18,12 +18,7 @@ import {
   type SentMessage,
   safeOutgoing,
 } from "@miyoria/types";
-import {
-  type EmojiLimits,
-  reactionEmoji,
-  renderEmoji,
-  uncodeEmoji,
-} from "./emoji.js";
+import { type EmojiLimits, reactionEmoji, renderEmoji, uncodeEmoji } from "./emoji.js";
 import { PLATFORM, snowflake } from "./mapping.js";
 import {
   DEFAULT_MAX_UPLOAD_BYTES,
@@ -34,12 +29,8 @@ import {
   type SinkEmoji,
   type SinkStickers,
 } from "./sink.js";
-import {
-  renderStickers,
-  type ServerSticker,
-  type StickerLimits,
-} from "./stickers.js";
 import { MAX_MESSAGE_LEN, splitMessage } from "./split.js";
+import { renderStickers, type ServerSticker, type StickerLimits } from "./stickers.js";
 
 const MAX_VOICE_STATUS = 500;
 const ENTITY_TOO_LARGE = 40005;
@@ -73,7 +64,10 @@ export interface SelfTextChannelLike {
   sendTyping?(): Promise<unknown>;
   messages?: {
     react?(messageId: string, emoji: string): Promise<unknown>;
-    edit?(messageId: string, options: { content?: string; allowedMentions?: unknown }): Promise<unknown>;
+    edit?(
+      messageId: string,
+      options: { content?: string; allowedMentions?: unknown },
+    ): Promise<unknown>;
   };
 }
 
@@ -177,7 +171,8 @@ export class SelfDiscordSink implements PlatformSink, ReplySink {
 
   async #fetchChannel(channelId: string): Promise<SelfTextChannelLike> {
     const cached = this.#client.channels.cache.get(channelId);
-    const ch = (cached ?? (await this.#client.channels.fetch(channelId))) as Partial<SelfTextChannelLike> | null;
+    const ch = (cached ??
+      (await this.#client.channels.fetch(channelId))) as Partial<SelfTextChannelLike> | null;
     if (!ch || typeof ch.send !== "function") {
       throw new DiscordSendError(`channel ${channelId} is not sendable`);
     }
@@ -479,13 +474,11 @@ export class SelfDiscordSink implements PlatformSink, ReplySink {
     if (context.platform !== PLATFORM) return null;
     try {
       const chId = snowflake(context.channel, "channel");
-      const ch =
-        this.#client.channels.cache.get(chId) ?? (await this.#client.channels.fetch(chId));
+      const ch = this.#client.channels.cache.get(chId) ?? (await this.#client.channels.fetch(chId));
       const channelName = nameOf(ch);
       if (context.scope === null || !this.#client.guilds) return channelName;
       const gId = snowflake(context.scope, "guild");
-      const guild =
-        this.#client.guilds.cache.get(gId) ?? (await this.#client.guilds.fetch(gId));
+      const guild = this.#client.guilds.cache.get(gId) ?? (await this.#client.guilds.fetch(gId));
       const guildName = nameOf(guild);
       if (guildName === null) return channelName;
       return channelName === null ? guildName : `${guildName} / ${channelName}`;

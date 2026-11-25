@@ -11,6 +11,28 @@
 // (slash.ts), command sync and scope cleanup (sync.ts) and the interaction flow
 // (interaction.ts). `DiscordHistory` (history.ts) reads earlier messages for the agent.
 
+export {
+  AMBIENT_PRESENCE_CONTRIBUTOR,
+  AMBIENT_PRESENCE_PRESETS,
+  type AmbientPresenceConfig,
+  AmbientPresenceConfigSchema,
+  type AmbientPresenceLoopOptions,
+  type AmbientPresencePreset,
+  type AmbientPresenceSnapshot,
+  type AmbientStatus,
+  ambientPresenceContributor,
+  type FormatPresenceOptions,
+  formatPresencePayload,
+  MUSIC_TRACKS,
+  type MusicTrackPreset,
+  OSU_MAPS,
+  type OsuMapPreset,
+  type PickedPresence,
+  type PresenceClientLike,
+  pickAmbientPresence,
+  type RichActivityPreset,
+  runAmbientPresenceLoop,
+} from "./ambient-presence.js";
 export { type DiscordConfig, DiscordConfigSchema, validateDiscordConfig } from "./config.js";
 export { ambientChannel, type ChannelIds, messageAllowed } from "./gate.js";
 export {
@@ -102,6 +124,50 @@ export {
   type ResolverClientLike,
 } from "./resolver.js";
 export {
+  type SelfClientLike,
+  SelfGatewayBridge,
+  type SelfGuildLike,
+  type SelfMessageLike,
+  type SelfPresenceLike,
+  type SelfReactionLike,
+  SelfShared,
+  type SelfTypingLike,
+  selfActivityType,
+  selfKindOf,
+} from "./self-bridge.js";
+export {
+  type DiscordSelfConfig,
+  DiscordSelfConfigSchema,
+  resolveSelfToken,
+} from "./self-config.js";
+export {
+  findCachedMember,
+  normalizeMessageLike,
+  SELF_MAX_FETCH,
+  type SelfCachedMemberLike,
+  SelfDiscordHistory,
+  type SelfFetchedLike,
+  type SelfGuildMembersLike,
+  type SelfHistoryClientLike,
+  type SelfMessageManagerLike,
+} from "./self-history.js";
+export { DiscordSelfModule, type DiscordSelfOptions } from "./self-module.js";
+export {
+  SelfDiscordPlaces,
+  type SelfPlaceChannelLike,
+  type SelfPlaceGuildLike,
+  type SelfPlacesClientLike,
+  selfGuildViews,
+} from "./self-places.js";
+export {
+  plainTextOfReply,
+  SelfDiscordSink,
+  type SelfSendFile,
+  type SelfSendOptions,
+  type SelfSinkClientLike,
+  type SelfTextChannelLike,
+} from "./self-sink.js";
+export {
   DEFAULT_MAX_UPLOAD_BYTES,
   type DiscordOutgoing,
   DiscordSendError,
@@ -141,69 +207,3 @@ export {
   syncCommands,
   syncRunner,
 } from "./sync.js";
-export {
-  type DiscordSelfConfig,
-  DiscordSelfConfigSchema,
-  resolveSelfToken,
-} from "./self-config.js";
-export {
-  findCachedMember,
-  normalizeMessageLike,
-  type SelfCachedMemberLike,
-  SelfDiscordHistory,
-  type SelfFetchedLike,
-  type SelfGuildMembersLike,
-  type SelfHistoryClientLike,
-  SELF_MAX_FETCH,
-  type SelfMessageManagerLike,
-} from "./self-history.js";
-export {
-  SelfDiscordPlaces,
-  type SelfPlaceChannelLike,
-  type SelfPlaceGuildLike,
-  type SelfPlacesClientLike,
-  selfGuildViews,
-} from "./self-places.js";
-export {
-  plainTextOfReply,
-  SelfDiscordSink,
-  type SelfSendFile,
-  type SelfSendOptions,
-  type SelfSinkClientLike,
-  type SelfTextChannelLike,
-} from "./self-sink.js";
-export {
-  selfActivityType,
-  type SelfClientLike,
-  SelfGatewayBridge,
-  type SelfGuildLike,
-  selfKindOf,
-  type SelfMessageLike,
-  type SelfPresenceLike,
-  type SelfReactionLike,
-  SelfShared,
-  type SelfTypingLike,
-} from "./self-bridge.js";
-export {
-  AMBIENT_PRESENCE_CONTRIBUTOR,
-  ambientPresenceContributor,
-  type AmbientPresenceConfig,
-  AmbientPresenceConfigSchema,
-  type AmbientPresenceLoopOptions,
-  type AmbientPresencePreset,
-  type AmbientPresenceSnapshot,
-  type AmbientStatus,
-  AMBIENT_PRESENCE_PRESETS,
-  formatPresencePayload,
-  type FormatPresenceOptions,
-  MUSIC_TRACKS,
-  type MusicTrackPreset,
-  OSU_MAPS,
-  type OsuMapPreset,
-  type PickedPresence,
-  type PresenceClientLike,
-  pickAmbientPresence,
-  type RichActivityPreset,
-  runAmbientPresenceLoop,
-} from "./ambient-presence.js";
-export { DiscordSelfModule, type DiscordSelfOptions } from "./self-module.js";

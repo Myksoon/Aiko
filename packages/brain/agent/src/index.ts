@@ -12,10 +12,10 @@ export { type Tool, type ToolContext, ToolRegistry, ToolRegistryKey } from "@miy
 export { ACTIVENESS_CAPABILITY, activenessCapability, LEVEL_TALKATIVENESS } from "./actions.js";
 export {
   type Aside,
-  type FollowUpFacts,
   aboutHerInThirdPerson,
   asideOf,
   directReason,
+  type FollowUpFacts,
   isConversationFollowUp,
   isQuestion,
   openingCall,
@@ -94,6 +94,23 @@ export {
   WarmContext,
   type WarmRead,
 } from "./contributors.js";
+export {
+  AIKO_VISUAL_ANCHOR,
+  type AikoOutfit,
+  buildEditImagePrompt,
+  buildNewImagePrompt,
+  composeCanvasSvg,
+  DrawPictureTool,
+  getAikoCurrentOutfit,
+  type ImageBackend,
+  type ImageMedium,
+  isOutdoorScene,
+  isSelfOrCharacterSubject,
+  isUnsafeImageText,
+  sanitizeSvgLayer,
+  type VisualCanvas,
+  VisualCanvasBook,
+} from "./draw.js";
 export {
   DEFAULT_PAUSE_MS,
   Expression,
@@ -223,23 +240,6 @@ export {
   LONG_CLAUSE_CHARS,
   SentenceSplitter,
 } from "./speech.js";
-export {
-  AIKO_VISUAL_ANCHOR,
-  composeCanvasSvg,
-  DrawPictureTool,
-  type AikoOutfit,
-  type ImageBackend,
-  type ImageMedium,
-  buildEditImagePrompt,
-  buildNewImagePrompt,
-  getAikoCurrentOutfit,
-  isOutdoorScene,
-  isSelfOrCharacterSubject,
-  isUnsafeImageText,
-  sanitizeSvgLayer,
-  type VisualCanvas,
-  VisualCanvasBook,
-} from "./draw.js";
 export { ANIME_GIF_REACTIONS, AnimeGifTool, ReactTool, ToolArgumentError } from "./tools.js";
 export { TimeoutError, timeout, truncate } from "./util.js";
 export {

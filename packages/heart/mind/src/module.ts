@@ -53,7 +53,7 @@ import {
   type ReminderLimits,
   remindCapability,
 } from "./life/reminders.js";
-import { WORLD_STORY_CONTRIBUTOR, worldDoCapability, WorldStoryBook } from "./life/world-story.js";
+import { WORLD_STORY_CONTRIBUTOR, WorldStoryBook, worldDoCapability } from "./life/world-story.js";
 import { MindLoop } from "./mind.js";
 
 const STORE_TIMEOUT_MS = 5_000;

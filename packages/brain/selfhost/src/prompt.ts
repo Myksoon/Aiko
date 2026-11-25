@@ -906,11 +906,7 @@ export class HostPrompt implements PromptSource {
     const stateLines = contextState(buckets).map((s) =>
       discordActivity !== null ? s.replace("活動:閒著", `活動:${discordActivity}`) : s,
     );
-    const notes = [
-      ...(presenceBody !== null ? [presenceBody] : []),
-      ...stateLines,
-      ...budgetSelf(own, agent.config.mainline.self_chars).notes,
-    ];
+    const notes = [...stateLines, ...budgetSelf(own, agent.config.mainline.self_chars).notes];
     for (const note of notes) {
       const block = note.trim();
       if (block !== "") lines.push(block);

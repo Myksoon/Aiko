@@ -45,6 +45,7 @@
     "@ai-sdk/openai-compatible": "3.0.92",
     "@clack/prompts": "^1.8.1",
     "@hono/node-server": "^2.1.5",
+    "@lng2004/discord.js-selfbot-v13": "3.7.2",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "@node-rs/jieba": "^2.0.4",
     "@orpc/client": "~1.16.2",

@@ -456,7 +456,7 @@ export function ambientPresenceContributor(
         body =
           `Your live Discord profile currently shows: ${verb} ${snap.activityName}` +
           `${extra ? ` (${extra})` : ""} (status: ${snap.status}, started ${minsAgo}m ago). ` +
-          `If someone asks what you're playing, listening to, or doing right now, THIS is what you are actually doing — never deny it.`;
+          `Background context only: if asked directly, answer honestly (never deny it), or bring it up naturally once as a conversation topic/question—do NOT keep repeating what you are currently doing as filler or an excuse on unrelated turns.`;
       } else {
         body = `Your live Discord profile currently shows: ${snap.status}, not playing any game or music right now (just hanging out).`;
       }
@@ -528,7 +528,14 @@ export function formatPresencePayload(
   preset: AmbientPresencePreset,
   options: FormatPresenceOptions,
 ): { status: AmbientStatus; activities: Array<Record<string, unknown>> } {
-  const { rich, nowMs, sessionStartMs = nowMs, trackIndex = 0, osuIndex = 0, resolvedLargeImage } = options;
+  const {
+    rich,
+    nowMs,
+    sessionStartMs = nowMs,
+    trackIndex = 0,
+    osuIndex = 0,
+    resolvedLargeImage,
+  } = options;
 
   if (preset.activity === null) {
     return { status: preset.status, activities: [] };
@@ -542,7 +549,10 @@ export function formatPresencePayload(
   }
 
   if (preset.kind === "youtube-music") {
-    const track = MUSIC_TRACKS[((trackIndex % MUSIC_TRACKS.length) + MUSIC_TRACKS.length) % MUSIC_TRACKS.length]!;
+    const track =
+      MUSIC_TRACKS[
+        ((trackIndex % MUSIC_TRACKS.length) + MUSIC_TRACKS.length) % MUSIC_TRACKS.length
+      ]!;
     return {
       status: preset.status,
       activities: [
@@ -629,7 +639,10 @@ async function resolveExternalAsset(
     cache.set(url, formatted);
     return formatted;
   } catch (error) {
-    log.debug({ url, error: errorMessage(error) }, "could not resolve external RPC image, using fallback asset");
+    log.debug(
+      { url, error: errorMessage(error) },
+      "could not resolve external RPC image, using fallback asset",
+    );
     return undefined;
   }
 }
@@ -694,11 +707,20 @@ export async function runAmbientPresenceLoop(options: AmbientPresenceLoopOptions
               startedAt: ts,
             });
             log.info(
-              { status: preset.status, activity: "YouTube Music", details: track.title, state: track.artist, rich },
+              {
+                status: preset.status,
+                activity: "YouTube Music",
+                details: track.title,
+                state: track.artist,
+                rich,
+              },
               "updated ambient discord presence",
             );
           } catch (error) {
-            log.warn({ error: errorMessage(error), activity: "YouTube Music" }, "failed to update ambient discord presence");
+            log.warn(
+              { error: errorMessage(error), activity: "YouTube Music" },
+              "failed to update ambient discord presence",
+            );
           }
         }
         const waitMs = Math.min(track.durationMs, remaining);
@@ -734,11 +756,20 @@ export async function runAmbientPresenceLoop(options: AmbientPresenceLoopOptions
               startedAt: sessionStartMs,
             });
             log.info(
-              { status: preset.status, activity: "osu!", details: map.details ?? null, state: map.state, rich },
+              {
+                status: preset.status,
+                activity: "osu!",
+                details: map.details ?? null,
+                state: map.state,
+                rich,
+              },
               "updated ambient discord presence",
             );
           } catch (error) {
-            log.warn({ error: errorMessage(error), activity: "osu!" }, "failed to update ambient discord presence");
+            log.warn(
+              { error: errorMessage(error), activity: "osu!" },
+              "failed to update ambient discord presence",
+            );
           }
         }
         const mapStepMs = Math.round((2.5 + random() * 2.0) * 60_000);
@@ -778,8 +809,8 @@ export async function runAmbientPresenceLoop(options: AmbientPresenceLoopOptions
           {
             status: preset.status,
             activity: preset.activity?.name ?? null,
-            details: rich ? preset.activity?.details ?? null : null,
-            state: rich ? preset.activity?.state ?? null : null,
+            details: rich ? (preset.activity?.details ?? null) : null,
+            state: rich ? (preset.activity?.state ?? null) : null,
             rich,
           },
           "updated ambient discord presence",

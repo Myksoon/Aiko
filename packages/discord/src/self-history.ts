@@ -83,8 +83,7 @@ function isList(value: SelfFetchedLike | SelfFetchedList): value is SelfFetchedL
 }
 
 function readable(m: SelfFetchedLike): boolean {
-  const isNormal =
-    m.type === "DEFAULT" || m.type === "REPLY" || m.type === 0 || m.type === 19;
+  const isNormal = m.type === "DEFAULT" || m.type === "REPLY" || m.type === 0 || m.type === 19;
   return isNormal && hasContent(normalizeMessageLike(m));
 }
 
