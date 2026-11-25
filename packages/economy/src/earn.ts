@@ -1,0 +1,243 @@
+// What people earn by being with her, read off the bus:
+//
+// * `talked`: once per local day she saw them say something, in text or in voice.
+// * `voice`: per 10-minute window in her voice channel, when they spoke in it and are still
+//   there when it ends (sitting in silence earns nothing).
+// * `song`: a song they requested that she sang to the end.
+// * the daily quest "with others" (quests.ts): whoever was in her voice channel when a song
+//   started and still is when she sang it to the end, when enough people she knows were.
+//
+// A song sung to the end gets one card in her voice channel's text chat (notices.ts): the
+// requester's coins, who finished the quest by listening, and what that unlocked. Without a voice
+// channel there is no card.
+//
+// Only people she knows earn (`EconomyService.earn` checks); keys make a replayed event or a
+// restart pay nothing twice.
+
+import { errorMessage, type Logger, type ServiceLookup } from "@miyoria/runtime/kernel";
+import { SingerKey } from "@miyoria/sing";
+import {
+  type AccountRef,
+  accountRefString,
+  type BusEvent,
+  type ContextKey,
+  contextKeyEquals,
+  Events,
+  is,
+  type JsonValue,
+  parseSongCue,
+  type VoiceParticipant,
+} from "@miyoria/types";
+import type { EconomyConfig } from "./config.js";
+import { type EconomyService, localDay, voiceWindow } from "./economy.js";
+import {
+  amounts,
+  eventCard,
+  postCard,
+  type QuestDone,
+  questParts,
+  unlockLines,
+} from "./notices.js";
+import { someone } from "./receipt.js";
+
+/** A stranger is looked up again after this long. */
+const STRANGER_RETRY_MS = 10 * 60_000;
+const MAX_REMEMBERED = 10_000;
+
+interface Voice {
+  context: ContextKey;
+  present: Map<string, AccountRef>;
+}
+
+export class Earnings {
+  readonly #economy: EconomyService;
+  readonly #config: EconomyConfig;
+  readonly #services: ServiceLookup;
+  readonly #log: Logger;
+  readonly #self = new Set<string>();
+  /** Account → the local day `talked` was settled for them. */
+  readonly #talked = new Map<string, number>();
+  /** Account → when to look a stranger up again. */
+  readonly #strangers = new Map<string, number>();
+  #voice: Voice | null = null;
+  /** Who was in her voice channel when the song now playing started. */
+  #listening = new Map<string, AccountRef>();
+  /** The title of the song now playing, as its start cue said. */
+  #title = "";
+  #window = -1;
+  /** Who spoke in `#window`. */
+  readonly #spoke = new Map<string, AccountRef>();
+
+  constructor(
+    economy: EconomyService,
+    config: EconomyConfig,
+    services: ServiceLookup,
+    log: Logger,
+  ) {
+    this.#economy = economy;
+    this.#config = config;
+    this.#services = services;
+    this.#log = log;
+  }
+
+  /** One bus event at `now` (epoch ms). Never throws. */
+  async onEvent(event: BusEvent, now: number): Promise<void> {
+    try {
+      await this.#on(event, now);
+    } catch (error) {
+      this.#log.warn({ err: errorMessage(error), event: event.type }, "cannot pay for an event");
+    }
+  }
+
+  async #on(event: BusEvent, now: number): Promise<void> {
+    if (is(Events.PlatformReady, event)) {
+      this.#self.add(accountRefString(event.data.self_account));
+      return;
+    } else if (is(Events.PlatformMessageCreated, event)) {
+      const author = event.data.author;
+      if (!author.is_bot) await this.#saw(author.account, now);
+      return;
+    } else if (is(Events.VoiceJoined, event)) {
+      this.#voice = {
+        context: event.data.context,
+        present: this.#present(event.data.participants),
+      };
+      return;
+    } else if (is(Events.VoiceParticipants, event)) {
+      if (this.#voice === null || contextKeyEquals(this.#voice.context, event.data.context)) {
+        this.#voice = {
+          context: event.data.context,
+          present: this.#present(event.data.participants),
+        };
+      }
+      return;
+    } else if (is(Events.VoiceLeft, event)) {
+      if (this.#voice !== null && contextKeyEquals(this.#voice.context, event.data.context)) {
+        this.#voice = null;
+      }
+      return;
+    } else if (is(Events.VoiceUtteranceEvent, event)) {
+      const speaker = event.data.speaker;
+      if (speaker.is_bot || this.#isSelf(speaker.account)) return;
+      await this.settleVoice(now);
+      this.#spoke.set(accountRefString(speaker.account), speaker.account);
+      await this.#saw(speaker.account, now);
+      return;
+    } else {
+      if (event.type === Events.SingCue.type) await this.#song(event.data as JsonValue);
+      return;
+    }
+  }
+
+  #isSelf(account: AccountRef): boolean {
+    return this.#self.has(accountRefString(account));
+  }
+
+  #present(participants: readonly VoiceParticipant[]): Map<string, AccountRef> {
+    const out = new Map<string, AccountRef>();
+    for (const p of participants) {
+      if (!p.is_self) out.set(accountRefString(p.account), p.account);
+    }
+    return out;
+  }
+
+  /** She saw them say something: `talked`, once a day. */
+  async #saw(account: AccountRef, now: number): Promise<void> {
+    if (this.#isSelf(account)) return;
+    const key = accountRefString(account);
+    const day = localDay(now, this.#config.utc_offset_minutes);
+    if (this.#talked.get(key) === day || (this.#strangers.get(key) ?? 0) > now) return;
+    if ((await this.#economy.member(account)) === null) {
+      this.#remember(this.#strangers, key, now + STRANGER_RETRY_MS);
+      return;
+    }
+    this.#strangers.delete(key);
+    this.#remember(this.#talked, key, day);
+    await this.#economy.earn(account, "talked", this.#config.talked, `talked:${day}`);
+  }
+
+  #remember(map: Map<string, number>, key: string, value: number): void {
+    if (map.size >= MAX_REMEMBERED) map.clear();
+    map.set(key, value);
+  }
+
+  /**
+   * Pays the voice window that ended before `now`: whoever spoke in it and is still in her voice
+   * channel (everyone who spoke, when who is there is unknown).
+   */
+  async settleVoice(now: number): Promise<void> {
+    const window = voiceWindow(now);
+    if (window === this.#window) return;
+    const ended = this.#window;
+    const spoke = [...this.#spoke.values()];
+    this.#window = window;
+    this.#spoke.clear();
+    if (ended < 0) return;
+    const present = this.#voice?.present ?? null;
+    for (const account of spoke) {
+      if (present !== null && !present.has(accountRefString(account))) continue;
+      await this.#economy.earn(account, "voice", this.#config.voice_per_10min, `voice:${ended}`);
+    }
+  }
+
+  /**
+   * The song was sung to the end: whoever sat through it ticks the "with others" quest, when at
+   * least `quest_together_min_people` people she knows did (someone alone with her does not).
+   */
+  async #heard(): Promise<QuestDone[]> {
+    const stayed = [...this.#listening].filter(([key]) => this.#voice?.present.has(key));
+    this.#listening = new Map();
+    const known = [];
+    for (const [, account] of stayed) {
+      const who = await this.#economy.member(account);
+      if (who) known.push({ account, who });
+    }
+    const done: QuestDone[] = [];
+    if (known.length < this.#config.quest_together_min_people) return done;
+    for (const { account, who } of known) {
+      const result = await this.#economy.v2.questDone(who, "together");
+      if (result?.status === "paid") done.push({ account, result });
+    }
+    return done;
+  }
+
+  /** A song ended: its requester earns when she sang it to the end; one card says what moved. */
+  async #song(payload: Parameters<typeof parseSongCue>[0]): Promise<void> {
+    const cue = parseSongCue(payload);
+    if (cue?.state === "started") {
+      this.#listening = new Map(this.#voice?.present ?? []);
+      this.#title = cue.title;
+    }
+    if (cue?.state !== "ended" || cue.outcome !== "finished") return;
+    // Where the song was heard, read before anything awaits.
+    const context = this.#voice?.context ?? null;
+    const heard = await this.#heard();
+    const list = this.#services.get(SingerKey)?.list.all() ?? [];
+    const entry = list
+      .filter((e) => e.song?.id === cue.song && e.requester !== null && e.state === "done")
+      .sort((a, b) => b.no - a.no)[0];
+    const title = [...(entry?.song?.title || entry?.query || this.#title)].slice(0, 100).join("");
+    const lines: string[] = [];
+    const extras: string[] = [];
+    if (entry?.requester) {
+      const paid = await this.#economy.earn(
+        entry.requester,
+        "song",
+        this.#config.song_finished,
+        `song:${entry.no}:${entry.created_at}`,
+        title,
+      );
+      if (paid !== null) {
+        lines.push(`${someone(entry.requester)} 點的,+${paid.delta}`);
+        const who = await this.#economy.member(entry.requester);
+        if (who)
+          extras.push(...unlockLines(await this.#economy.v2.afterEarn(who), entry.requester));
+      }
+    }
+    const quests = questParts(heard);
+    if (quests.paid.length > 0) lines.push(`聽完的人:${amounts(quests.paid)}(每日任務)`);
+    extras.unshift(...quests.bonuses);
+    extras.push(...quests.unlocks);
+    postCard(this.#economy, context, eventCard(`🎵 唱完〈${title || "這首歌"}〉`, lines, extras));
+  }
+}

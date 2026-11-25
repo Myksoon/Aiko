@@ -1,0 +1,132 @@
+// Where something happened, as she reads it from where she is, and whether it may be shown there
+// at all. The rule (stated in packages/types/src/recent-past.ts and tested in
+// test/recent.test.ts):
+//
+// * her own state (no place) is shown everywhere;
+// * this place is shown;
+// * a DM is shown only while the other person in it is one she is talking with, and then as
+//   private ("do not quote or reveal it here"). 2026-11-10: she asked someone the same thing four
+//   times in a channel because nothing there knew their DM had answered it; knowing is fine,
+//   telling the channel is not. Outside a private place only that it happened is shown, never what
+//   was said (`quotable`): the same evening she told a channel what someone had just told her in
+//   their DM, the mark notwithstanding;
+// * another place of the same guild is shown unless the owner hid it or `PlaceAccess` says
+//   someone here cannot see it; another guild never is;
+// * seen from a DM, a guild place is shown only for what the person she is talking with took
+//   part in (they were there).
+
+import {
+  type AccountRef,
+  type ContextKey,
+  contextKeyEquals,
+  contextKeyString,
+  type Handle,
+  type PlaceAccess,
+  type PlaceRef,
+  safeName,
+} from "@miyoria/types";
+import { isPrivate } from "./scope.js";
+
+export type Disclosure = "show" | "private" | "hide";
+
+/** Who is reading, as the place rule needs it. */
+export interface Viewer {
+  context: ContextKey;
+  /** Handles of the people she is talking with. */
+  talkingWith: ReadonlySet<Handle>;
+  accounts: readonly AccountRef[];
+  hidden: ReadonlySet<string>;
+  access: PlaceAccess | null;
+  /** DM context → the other person in it. */
+  partners: ReadonlyMap<string, Handle>;
+}
+
+/** The other person in a DM, when known. */
+export function partnerOf(viewer: Pick<Viewer, "partners">, place: ContextKey): Handle | null {
+  return viewer.partners.get(contextKeyString(place)) ?? null;
+}
+
+/**
+ * Whether what happened in `place` may be shown to `viewer`. `involves`: the people who took
+ * part in it (only a DM viewer reads it: a guild place is shown there for what they took part in).
+ */
+export function disclose(
+  place: ContextKey | null,
+  viewer: Viewer,
+  involves: readonly Handle[] = [],
+): Disclosure {
+  if (place === null) return "show";
+  if (contextKeyEquals(place, viewer.context)) return "show";
+  if (isPrivate(place)) {
+    const partner = partnerOf(viewer, place);
+    return partner !== null && viewer.talkingWith.has(partner) ? "private" : "hide";
+  }
+  if (place.platform !== viewer.context.platform) return "hide";
+  if (isPrivate(viewer.context)) {
+    // Their DM partner was there for it, so telling them is telling them what they saw.
+    return involves.some((h) => viewer.talkingWith.has(h)) && placeOpen(place, viewer)
+      ? "show"
+      : "hide";
+  }
+  if (place.scope !== viewer.context.scope) return "hide";
+  return placeOpen(place, viewer) ? "show" : "hide";
+}
+
+/** Not hidden by the owner, and everyone here can see it when a platform can tell. */
+function placeOpen(place: ContextKey, viewer: Viewer): boolean {
+  if (viewer.hidden.has(place.channel)) return false;
+  const access = viewer.access;
+  if (access === null) return true;
+  return viewer.accounts.every((account) => access.canSee(account, place) === true);
+}
+
+/** How `place` reads from `viewer`. */
+export function placeRef(place: ContextKey | null, viewer: Viewer): PlaceRef {
+  if (place === null) return { kind: "here", label: "", context: null };
+  if (contextKeyEquals(place, viewer.context))
+    return { kind: "here", label: "這裡", context: place };
+  if (isPrivate(place)) {
+    const partner = partnerOf(viewer, place);
+    return {
+      kind: "dm",
+      label: partner === null ? "私訊" : `和 ${safeName(partner)} 的私訊`,
+      context: place,
+    };
+  }
+  if (place.kind === "voice") return { kind: "voice", label: "語音", context: place };
+  return { kind: "text", label: "別的文字頻道", context: place };
+}
+
+/** The mark a private entry carries. */
+export const PRIVATE_MARK = "私訊裡的事,只給你知道,不要在這裡引用或透露";
+
+/** What stands in for the words of a DM where they may not be quoted. */
+export const WITHHELD = "(內容不在這裡說)";
+
+/**
+ * Whether the words of what `disclose` allowed may be quoted to `viewer`: what is shown, and a DM
+ * only from a private place. In a channel, a DM is known to have happened and nothing more.
+ */
+export function quotable(disclosure: Disclosure, viewer: Pick<Viewer, "context">): boolean {
+  if (disclosure === "show") return true;
+  return disclosure === "private" && isPrivate(viewer.context);
+}
+
+/** `跟 X 私訊聊過(內容不在這裡說)`: a DM as a channel may know of it. */
+export function withheldTalk(partner: Handle | null): string {
+  return `${partner === null ? "有人" : `跟 ${safeName(partner)} `}私訊聊過${WITHHELD}`;
+}
+
+/**
+ * The head of what she read of another place from where she is (the `look` tool, docs/design/
+ * v5-places.md §9): those words are that place's, shown here only as far as `disclose` allowed.
+ * Nothing written from a run is made of them (the segment pass leaves such a tool result out), so
+ * they never become a note or a memory of the place she read them in, which would carry them to
+ * wherever that place's things are shown.
+ */
+export const ELSEWHERE_MARK = "〔別的地方的事〕";
+
+/** Whether `text` (a tool result) is what she read of another place. */
+export function fromElsewhere(text: string): boolean {
+  return text.trimStart().startsWith(ELSEWHERE_MARK);
+}

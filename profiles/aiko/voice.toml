@@ -1,0 +1,4 @@
+# Aiko's active voice: xAI Grok TTS "ara" (calm, soft, subdued female voice; English + Indonesian).
+# To switch back to local qwentts-cpp voice cloning (workers/voices/aiko/ref.wav):
+# delete or rename this file, set tts_chain = ["local"] in profiles/aiko/miyoria.toml, and run `pnpm dev up tts`.
+voice = "ara"

@@ -1,0 +1,181 @@
+// Coins (docs/design/economy.md): the `economy` module and the shapes the panel, the overlay and
+// the Discord commands share.
+
+export { BOARD_REASONS, MAX_BOARD } from "./board.js";
+export { BountyBoard } from "./bounties.js";
+export { EconomyCardWallet } from "./card-wallet.js";
+export { DEFAULT_FRAMES, type EconomyConfig, EconomyConfigSchema, type Frame } from "./config.js";
+export {
+  DANMAKU_KIND,
+  DANMAKU_REASON,
+  DANMAKU_REFUND_REASON,
+  DanmakuDesk,
+  type DanmakuOutcome,
+  danmakuText,
+  NO_DANMAKU_TAG,
+} from "./danmaku.js";
+export {
+  ALREADY_CHECKED_IN,
+  EconomyService,
+  feedLabel,
+  HUNGER_OF,
+  hungerWord,
+  MAX_FEED_COUNT,
+  marketWonLabel,
+  PAID_NAME,
+  STRANGER,
+  uniqueFrameOf,
+  WALLET_NODE,
+} from "./economy.js";
+export { EconomyExchangeWallet } from "./exchange-wallet.js";
+export {
+  CHAT_GIFT_ROUTES,
+  ChatGifts,
+  ChatGiftsKey,
+  type ChatQuoteResult,
+  ChatSpeakers,
+} from "./gift-chat.js";
+export { type FreeGiftConfig, FreeGiftConfigSchema, OLD_TIER_COINS } from "./gift-config.js";
+export { giftSchema } from "./gift-migrations.js";
+export {
+  type GiftPrice,
+  type GiftRecord,
+  type GiftStatus,
+  GiftTables,
+  giftTables,
+} from "./gift-tables.js";
+export {
+  BAND_WORD,
+  bandOf,
+  coinsOf,
+  foodHunger,
+  GIFT_KINDS,
+  GIFT_REASON,
+  GIFT_REFUSALS,
+  type GiftKind,
+  type GiftPricer,
+  GiftPricerKey,
+  type GiftRefusal,
+  type GiftVerdict,
+  giftKey,
+  giftName,
+  KIND_WORD,
+  REFUSAL_TEXT,
+  refusalText,
+} from "./gift-words.js";
+export {
+  type AdminGift,
+  FreeGiftsKey,
+  type GiftAsk,
+  type GiftConfirmed,
+  GiftDesk,
+  type GiftNo,
+  type GiftQuote,
+  type GiftView,
+  MAX_GIFT_LINE,
+  type PublicGift,
+  TAKEN_FOR_HER,
+} from "./gifts.js";
+export { TaskRefusal } from "./guard.js";
+export { EconomyKaraokeWallet } from "./karaoke-wallet.js";
+export { EconomyMarketWallet } from "./market-wallet.js";
+export { economySchema } from "./migrations.js";
+export { EconomyModule } from "./module.js";
+export { PURSE_PLATFORM, Purse } from "./purse.js";
+export { MAX_PICK_CHARS, PLAIN_PICKS } from "./quests.js";
+export {
+  type Bounty,
+  type BountyPatch,
+  type BountyStatus,
+  type BountyStore,
+  BountyStoreKey,
+  type CoinCap,
+  type CoinEntry,
+  type CoinLedgerStore,
+  CoinLedgerStoreKey,
+  type CoinPost,
+  type CoinRule,
+  type DocFilter,
+  type DocUpdate,
+  type EconomyDoc,
+  type EconomyDocStore,
+  EconomyDocsKey,
+  type FortuneRecord,
+  type FortuneStore,
+  FortuneStoreKey,
+  type LedgerDayTotal,
+  LedgerStatsKey,
+  type LedgerStatsStore,
+  PURSE,
+} from "./records.js";
+export {
+  BOUNTY_STATUSES,
+  type BountyRow,
+  type DocRow,
+  economyBounties,
+  economyDocs,
+  economyFortunes,
+  economyLedger,
+  economyWallets,
+  type FortuneRow,
+  type LedgerRow,
+  type WalletRow,
+} from "./schema.js";
+export { MAX_SCREEN_CHARS, screenText } from "./screen.js";
+export {
+  allowedDelta,
+  BountyTables,
+  DocTables,
+  type EconomyTables,
+  economyTables,
+  FortuneTables,
+  LedgerTables,
+} from "./tables.js";
+export { NO_RECEIVER, NO_TRANSFERS, OWN_ACCOUNT } from "./transfer.js";
+export {
+  type AdjustResult,
+  type BoardLine,
+  type BountyView,
+  type CheckinResult,
+  type DanmakuView,
+  type EarnLine,
+  type EarnReason,
+  type Economy,
+  EconomyError,
+  EconomyKey,
+  FEED_ITEMS,
+  type FeedItem,
+  type FeedResult,
+  type FramesResult,
+  GIFT_TOPIC,
+  type GiftEvent,
+  type GiftItem,
+  type Hunger,
+  type LedgerLine,
+  MAX_ADJUST,
+  MAX_ADJUST_NOTE_CHARS,
+  PAID_ITEMS,
+  type PaidItem,
+  type Purchase,
+  SCREEN_TOPIC,
+  type ScreenEvent,
+  type ShopItem,
+  type SpendResult,
+  type TransferResult,
+  type WalletExport,
+  type WalletView,
+} from "./types.js";
+export {
+  type BetResult,
+  type Economy2,
+  Economy2Key,
+  type PredictionSettledBy,
+  type PredictionSourceKind,
+  type PredictionView,
+  type QuestId,
+  type QuestPicker,
+  QuestPickerKey,
+  type QuestsView,
+  type ResolveResult,
+} from "./v2-types.js";
+export { coinName, pronounOf, transferSmallPrint } from "./words.js";

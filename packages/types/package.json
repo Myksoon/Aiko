@@ -1,0 +1,43 @@
+{
+  "name": "@miyoria/types",
+  "version": "0.1.0",
+  "description": "Shared domain types, events, ids and cross-module service contracts",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    ".": {
+      "@miyoria/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./bond": {
+      "@miyoria/source": "./src/bond.ts",
+      "types": "./dist/bond.d.ts",
+      "default": "./dist/bond.js"
+    },
+    "./exchange-amount": {
+      "@miyoria/source": "./src/exchange-amount.ts",
+      "types": "./dist/exchange-amount.d.ts",
+      "default": "./dist/exchange-amount.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@miyoria/contracts": "workspace:*",
+    "ulid": "^3.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.12"
+  }
+}

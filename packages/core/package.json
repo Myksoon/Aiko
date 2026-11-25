@@ -1,0 +1,58 @@
+{
+  "name": "@miyoria/core",
+  "version": "0.1.0",
+  "description": "Boots a core node: store, profile, services and every module, plus the terminal chat platform",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    ".": {
+      "@miyoria/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./light": {
+      "@miyoria/source": "./src/light.ts",
+      "types": "./dist/light.d.ts",
+      "default": "./dist/light.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@miyoria/api": "workspace:*",
+    "@miyoria/auth": "workspace:*",
+    "@miyoria/brain": "workspace:*",
+    "@miyoria/cluster": "workspace:*",
+    "@miyoria/commands": "workspace:*",
+    "@miyoria/discord": "workspace:*",
+    "@miyoria/economy": "workspace:*",
+    "@miyoria/gate": "workspace:*",
+    "@miyoria/heart": "workspace:*",
+    "@miyoria/live": "workspace:*",
+    "@miyoria/llm": "workspace:*",
+    "@miyoria/memory": "workspace:*",
+    "@miyoria/play": "workspace:*",
+    "@miyoria/plugin-host": "workspace:*",
+    "@miyoria/runtime": "workspace:*",
+    "@miyoria/sing": "workspace:*",
+    "@miyoria/stage": "workspace:*",
+    "@miyoria/store": "workspace:*",
+    "@miyoria/types": "workspace:*",
+    "@miyoria/voice": "workspace:*",
+    "@miyoria/watch": "workspace:*",
+    "@miyoria/workspace": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.12"
+  }
+}

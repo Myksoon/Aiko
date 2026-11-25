@@ -1,0 +1,49 @@
+# Build context of deploy/Dockerfile.core (`docker build -f deploy/Dockerfile.core .`).
+# The image installs and builds everything itself, so local build output stays out.
+.git
+.github
+.claude
+.vscode
+**/node_modules
+**/dist
+**/coverage
+**/*.tsbuildinfo
+**/target
+**/__pycache__
+**/.venv
+**/.pytest_cache
+**/.gradle
+**/build
+
+# Secrets and local state never go into an image
+.env
+.env.*
+**/.env
+**/.env.*
+!**/.env.example
+secrets.toml
+miyoria.toml
+aiko.toml
+host.toml
+profiles/*/miyoria.toml
+profiles/*/aiko.toml
+profiles/*/data
+data
+backups
+*.db
+*.db-shm
+*.db-wal
+SETUP-LOG.md
+GEMINI-TASK.md
+reports
+research_notes
+.tmp-test*
+
+# Local-only assets and experiments
+profiles/*/avatar/model
+profiles/*/voice/*.wav
+profiles/*/voice/*.txt
+legacy
+spikes
+workers
+packages/cli/assets

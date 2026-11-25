@@ -1,0 +1,44 @@
+{
+  "name": "@miyoria/sdk",
+  "version": "0.2.0",
+  "description": "SDK for Miyoria extensions: JSON-RPC over stdio, tools, commands, events, prompts, game adapters",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "@miyoria/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.12"
+  },
+  "dependencies": {
+    "@miyoria/contracts": "workspace:*"
+  }
+}

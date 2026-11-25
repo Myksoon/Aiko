@@ -1,0 +1,42 @@
+# Aiko Docker deployment: Core container with persistent SQLite data volume.
+#
+#   cp .env.example .env
+#   cp deploy/.env.example deploy/.env
+#   docker compose -f deploy/docker-compose.yml up -d --build
+name: aiko
+
+services:
+  core:
+    image: ${AIKO_IMAGE:-aiko-core:local}
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.core
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: ${CORE_DATABASE_URL:-sqlite:/data/aiko.db}
+      AIKO_LOG_LEVEL: ${AIKO_LOG_LEVEL:-info}
+      MIYORIA_LOG_LEVEL: ${AIKO_LOG_LEVEL:-info}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:${API_PORT:-7878}:7878"
+      - "127.0.0.1:${VOICE_LINK_PORT:-7879}:7879"
+      - "127.0.0.1:${STAGE_LINK_PORT:-7882}:7882"
+    volumes:
+      - core-data:/data
+      - ../profiles:/profiles
+      - ${AIKO_CONFIG_FILE:-./aiko.docker.toml}:/etc/aiko/aiko.toml:ro
+    user: "${AIKO_UID:-10001}:${AIKO_GID:-10001}"
+    stop_grace_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  core-data:

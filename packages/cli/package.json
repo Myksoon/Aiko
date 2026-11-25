@@ -1,0 +1,91 @@
+{
+  "name": "miyoria",
+  "version": "0.1.0",
+  "description": "Aiko — autonomous AI Discord companion CLI (`aiko init`, `aiko core`)",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "aiko": "dist/main.js",
+    "miyoria": "dist/main.js"
+  },
+  "exports": {
+    ".": {
+      "@miyoria/source": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": "./dist/index.js",
+      "./package.json": "./package.json"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.map",
+    "templates",
+    "assets",
+    "workers",
+    "services",
+    "packages"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "prepack": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "dev": "tsx --conditions=@miyoria/source src/main.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/deepseek": "3.0.87",
+    "@ai-sdk/openai-compatible": "3.0.92",
+    "@clack/prompts": "^1.8.1",
+    "@hono/node-server": "^2.1.5",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@node-rs/jieba": "^2.0.4",
+    "@orpc/client": "~1.16.2",
+    "@orpc/contract": "~1.16.2",
+    "@orpc/openapi": "~1.16.2",
+    "@orpc/openapi-client": "~1.16.2",
+    "@orpc/server": "~1.16.2",
+    "@resvg/resvg-js": "^2.6.2",
+    "ai": "7.0.173",
+    "d3-hierarchy": "3.1.3",
+    "discord.js": "^14.26.0",
+    "drizzle-orm": "1.0.0-rc.5",
+    "execa": "^10.2.1",
+    "hono": "^4.13.16",
+    "koffi": "^3.3.8",
+    "obs-websocket-js": "^5.0.6",
+    "opencc-js": "^1.4.2",
+    "pino": "^10.4.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "rotating-file-stream": "^4.0.0",
+    "sharp": "^0.35.5",
+    "smol-toml": "^1.9.1",
+    "ulid": "^3.0.2",
+    "uqr": "0.1.2",
+    "ws": "^8.22.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@miyoria/api": "workspace:*",
+    "@miyoria/contracts": "workspace:*",
+    "@miyoria/core": "workspace:*",
+    "@miyoria/discord": "workspace:*",
+    "@miyoria/hostd": "workspace:*",
+    "@miyoria/llm": "workspace:*",
+    "@miyoria/runtime": "workspace:*",
+    "@miyoria/store": "workspace:*",
+    "@miyoria/types": "workspace:*",
+    "@types/node": "^24.19.2",
+    "esbuild": "^0.28.2",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.12"
+  }
+}

@@ -1,0 +1,109 @@
+# Aiko Core configuration inside Docker (deploy/Dockerfile.core).
+# ports 7878, 7879, 7882 bind 0.0.0.0 inside the container and are published on 127.0.0.1 only by compose.
+
+[core]
+profile = "${AIKO_PROFILE:-aiko}"
+profiles_dir = "/profiles"
+database_url = "${DATABASE_URL:-sqlite:/data/aiko.db}"
+log = "info,miyoria=debug"
+
+[llm.providers.deepseek]
+kind = "openai-compatible"
+base_url = "${LLM_BASE_URL:-https://api.deepseek.com}"
+api_key = "${LLM_API_KEY:-}"
+reasoning_effort = true
+
+[llm.purposes]
+chat = ["deepseek:deepseek-v4.1-flash", "deepseek:deepseek-v4-pro"]
+review = ["deepseek:deepseek-v4.1-flash", "deepseek:deepseek-v4-pro"]
+
+[llm.reasoning]
+chat_voice = "off"
+chat_text = "low"
+fast = "off"
+reflect = "high"
+summarizer = "low"
+
+[agent.compaction]
+threshold_tokens = 6000
+keep_tokens = 2000
+
+[speech.asr.local]
+kind = "http-worker"
+url = "${ASR_URL:-http://host.docker.internal:8001}"
+
+[speech.tts.local]
+kind = "http-worker"
+url = "${TTS_URL:-http://host.docker.internal:8002}"
+voice = "aiko"
+
+[modules.commands]
+owners = ["discord:${AIKO_OWNER_ID:-0}"]
+
+[modules.auth]
+owners = ["discord:${AIKO_OWNER_ID:-0}"]
+
+[modules."platform.discord.bot"]
+token = "${DISCORD_BOT_TOKEN:-}"
+command_guilds = []
+
+[modules."platform.discord.bot".presence]
+enabled = true
+min_interval_mins = 20
+max_interval_mins = 50
+
+# Optional: uncomment to use self-account text mode instead of the bot account
+# [modules."platform.discord.self"]
+# token = "${DISCORD_SELF_TOKEN:-}"
+# [modules."platform.discord.self".presence]
+# enabled = true
+# min_interval_mins = 20
+# max_interval_mins = 50
+
+[modules.api]
+bind = "0.0.0.0:7878"
+token = "${AIKO_API_TOKEN:-}"
+
+[modules."voice.link"]
+bind = "0.0.0.0:7879"
+token = "${VOICE_LINK_TOKEN:-}"
+
+[modules."stage.link"]
+bind = "0.0.0.0:7882"
+token = "${STAGE_LINK_TOKEN:-}"
+
+[modules.extensions]
+dirs = ["/data/extensions"]
+
+[modules.voice]
+consent = "opt-out"
+barge_in = "selective"
+tts_language = "English"
+to_traditional = false
+# asr_language = "en"  # Leave unset so ASR_LANGUAGES="English,Indonesian" auto-detects both
+
+[modules.agent]
+language = "Indonesian or English (match user)"
+
+[modules.agent.rhythm]
+reactions_per_hour = 0
+courtesy_react = false
+
+[modules.agent.image]
+enabled = true
+provider = "auto"
+base_url = "${IMAGE_BASE_URL:-}"
+api_key = "${IMAGE_API_KEY:-}"
+model = "${IMAGE_MODEL:-}"
+cooldown_secs = 60
+max_per_hour = 6
+
+[modules.agent.voice]
+default_mode = "normal"
+debounce_ms = 700
+
+[modules.self.rise_per_hour]
+hunger = 0.0
+
+[modules.self.satisfy]
+turn_hunger = 1.0

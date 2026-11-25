@@ -1,0 +1,250 @@
+// Scripted feed for `?demo=1`: lets the overlay be designed, previewed in OBS and screenshotted
+// without the Stage. It speaks the same messages the Stage sends, and walks through every activity
+// (thinking, getting a line ready, preparing a song stage by stage, singing it) and queue change,
+// with danmaku lines crossing the top (bursts larger than the lanes, so some wait and some drop).
+import type { Activity, FeedMessage, QueueItem } from "./feed.js";
+
+interface Line {
+  emotion: string;
+  text: string;
+}
+
+const LINES: Line[] = [
+  { emotion: "happy", text: "哈囉,今天也來聊天吧!欸等一下,你剛剛說的那個遊戲,我好像也有聽過。" },
+  { emotion: "annoyed", text: "哼,才不是在等你呢。只是剛好有空而已。" },
+  { emotion: "surprised", text: "咦?真的假的?!這首歌我還沒唱過耶,可以先排進去嗎?" },
+  { emotion: "neutral", text: "好,那我們先來看一下接下來的順序。" },
+];
+
+/** Song requests, sung in turn (the second one has a title too long for the capsule). */
+const SONGS = ["夜に駆ける", "残酷な天使のテーゼ (Director's Edit Version) - 高橋洋子"];
+/** How a song's preparation goes: the worker's stages, end progress, seconds. */
+const PREPARE: [label: string, upTo: number, seconds: number][] = [
+  ["下載中", 0.16, 2],
+  ["等待中", 0.16, 1.4],
+  ["分離人聲", 0.46, 2.5],
+  ["轉換歌聲", 0.9, 3],
+  ["混音", 0.97, 1],
+  ["找歌詞", 1, 0.6],
+];
+const SONG_SECONDS = 22;
+const LYRICS = ["沈むように溶けてゆくように", "二人だけの空が広がる夜に", ""];
+
+/** Requests that join the queue over time. */
+const LATER: QueueItem[] = [
+  { title: "アイドル", by: "Mia" },
+  { title: "Minecraft:挖到鑽石", by: "小明" },
+  { title: "講一個鬼故事", by: "阿翔" },
+];
+
+/** Paid danmaku lines (at most 30 characters, like the default limit). */
+const DANMAKU_TEXTS = [
+  "來了來了",
+  "晚安~今天也辛苦了",
+  "這首歌好好聽!!!",
+  "草",
+  "剛下班,剛好趕上",
+  "她剛剛是不是在偷笑",
+  "88888888",
+  "第一次來,請多指教",
+  "可以再唱一次副歌嗎?拜託拜託拜託",
+  "今天的聲音特別有精神耶",
+  "白飯配什麼最好吃,大家投票",
+  "w",
+  "從台南來的,大家好",
+  "Minecraft 那座塔後來蓋好了嗎",
+];
+/** Who sent them; `null` is a line with the names hidden. */
+const DANMAKU_NAMES: (string | null)[] = ["Mia", "小明", null, "阿翔", "Owen", "Kai", "一隻路過的貓", null];
+
+const busy = (kind: string, label: string): Activity => ({
+  kind,
+  label,
+  detail: null,
+  progress: null,
+  elapsedMs: null,
+  durationMs: null,
+});
+
+export function startDemo(emit: (m: FeedMessage) => void): () => void {
+  let stopped = false;
+  const timers = new Set<ReturnType<typeof setTimeout>>();
+  const wait = (ms: number): Promise<void> =>
+    new Promise((resolve) => {
+      const t = setTimeout(() => {
+        timers.delete(t);
+        resolve();
+      }, ms);
+      timers.add(t);
+    });
+  const activity = (a: Activity | null) => emit({ type: "activity", activity: a });
+
+  // Voice levels while she "speaks": syllables (~6/s) with a little jitter, like real speech.
+  let talking = false;
+  let phase = 0;
+  const levels = setInterval(() => {
+    if (!talking) return;
+    phase += 1000 / 60;
+    const syllable = Math.max(0, Math.sin((phase / 1000) * Math.PI * 6.2)) ** 0.7;
+    const phrase = 0.55 + 0.45 * Math.sin((phase / 1000) * Math.PI * 0.7);
+    const rms = 0.012 + 0.16 * syllable * phrase * (0.75 + Math.random() * 0.5);
+    // Six bands (low → high) whose balance drifts like changing vowels.
+    const t = phase / 1000;
+    const bands = [0, 1, 2, 3, 4, 5].map(
+      (k) => rms * (1.1 - k * 0.14) * (0.6 + 0.4 * Math.sin(t * (2.3 + k * 0.9) + k)) * (0.8 + Math.random() * 0.4),
+    );
+    emit({ type: "levels", rms, bands });
+  }, 1000 / 60);
+
+  let queue: QueueItem[] = [
+    { title: SONGS[0] as string, by: "小明" },
+    { title: "Minecraft:蓋一座塔", by: "阿翔" },
+    { title: "聊聊今天的天氣", by: "Mia" },
+  ];
+  const setQueue = (items: QueueItem[]) => {
+    queue = items;
+    emit({ type: "queue", items });
+  };
+  const status = (scene: string) =>
+    emit({ type: "status", status: { core: true, vts: true, obs: true, scene, streaming: true } });
+
+  const speak = async (turn: string, line: Line) => {
+    // Her turn: thinking, then the line at TTS, then she speaks (the capsule goes away).
+    // A song prepared in the background shows beside her, never in place of what she does.
+    const side = { label: "準備歌曲", detail: SONGS[1] as string, progress: Math.min(0.85, 0.25 + (turn.length % 5) * 0.12) };
+    activity({ ...busy("thinking", "思考中…"), secondary: side });
+    await wait(1500);
+    activity({ ...busy("synthesizing", "產生語音…"), secondary: { ...side, progress: side.progress + 0.05 } });
+    await wait(900);
+    activity(null);
+    emit({ type: "emotion", name: line.emotion, intensity: line.emotion === "neutral" ? 0.6 : 1 });
+    emit({ type: "speaking", state: "started" });
+    talking = true;
+    const chars = [...line.text];
+    // Streamed in chunks, the way the agent's text arrives.
+    for (let i = 0; i < chars.length && !stopped; i += 4) {
+      emit({ type: "subtitle", turn, text: chars.slice(0, i + 4).join(""), final: false });
+      await wait(260);
+    }
+    emit({ type: "subtitle", turn, text: line.text, final: true });
+    await wait(900);
+    talking = false;
+    emit({ type: "levels", rms: 0, bands: null });
+    emit({ type: "speaking", state: "stopped" });
+  };
+
+  const sing = async (n: number) => {
+    const song = SONGS[(n - 1) % SONGS.length] as string;
+    // The worker prepares the song, stage by stage, progress at ~4 updates a second.
+    let progress = 0;
+    for (const [label, upTo, seconds] of PREPARE) {
+      const steps = Math.max(1, Math.round(seconds * 4));
+      const from = progress;
+      for (let i = 1; i <= steps && !stopped; i++) {
+        progress = from + ((upTo - from) * i) / steps;
+        // Waiting has no bar (a shimmer), like the real worker's `gpu_wait`.
+        activity({ kind: "song_prepare", label, detail: song, progress: label === "等待中" ? null : progress, elapsedMs: null, durationMs: null });
+        await wait(250);
+      }
+    }
+    activity(null);
+    await wait(1200);
+    // She sings it: the scene changes, the request leaves the queue, the bar runs on its own.
+    status("唱歌");
+    setQueue(queue.filter((q) => q.title !== song));
+    activity({ kind: "singing", label: "正在唱", detail: song, progress: null, elapsedMs: 0, durationMs: SONG_SECONDS * 1000 });
+    emit({ type: "emotion", name: "happy", intensity: 0.8 });
+    emit({ type: "speaking", state: "started" });
+    talking = true;
+    for (let i = 0; i < LYRICS.length && !stopped; i++) {
+      emit({ type: "subtitle", turn: `song-${n}:${i}`, text: LYRICS[i] as string, final: true });
+      await wait((SONG_SECONDS * 1000) / LYRICS.length);
+    }
+    talking = false;
+    emit({ type: "levels", rms: 0, bands: null });
+    emit({ type: "speaking", state: "stopped" });
+    activity(null);
+    status("Game");
+    // A request jumps the line, the next song is asked for, and the list reorders.
+    const next = LATER[(n - 1) % LATER.length] as QueueItem;
+    setQueue([next, ...queue, { title: SONGS[n % SONGS.length] as string, by: "Mia" }]);
+  };
+
+  // Viewers touching the stream: now and then a little burst around her head, face and body, and
+  // one on the plain picture (the demo has no picture; the places are where she stands in `sing`).
+  const SPOTS: [x: number, y: number, part: "head" | "face" | "body" | "screen"][] = [
+    [0.72, 0.22, "head"],
+    [0.74, 0.3, "face"],
+    [0.76, 0.62, "body"],
+    [0.3, 0.45, "screen"],
+  ];
+  const touches = setInterval(() => {
+    const [x, y, part] = SPOTS[Math.floor(Math.random() * SPOTS.length)] as (typeof SPOTS)[number];
+    const jitter = () => (Math.random() - 0.5) * 0.04;
+    emit({ type: "touch", x: Math.min(Math.max(x + jitter(), 0), 1), y: Math.min(Math.max(y + jitter(), 0), 1), part });
+  }, 900);
+
+  // Danmaku: a line now and then, and every so often a burst bigger than the lanes and the queue,
+  // so lines wait, and some are dropped (queue full, or waited too long). Some come without a name.
+  let danmakuSeq = 0;
+  const danmaku = (): void => {
+    const i = danmakuSeq++;
+    emit({
+      type: "danmaku",
+      id: `demo-dm-${i}`,
+      name: DANMAKU_NAMES[i % DANMAKU_NAMES.length] ?? null,
+      text: DANMAKU_TEXTS[(i * 5) % DANMAKU_TEXTS.length] as string,
+      max_on_screen: 12,
+      queue_max: 6,
+      max_wait_ms: 8000,
+    });
+  };
+  const burst = (n: number): void => {
+    for (let k = 0; k < n; k++) {
+      const t = setTimeout(() => {
+        timers.delete(t);
+        danmaku();
+      }, k * 90);
+      timers.add(t);
+    }
+  };
+  burst(16);
+  const trickle = setInterval(() => {
+    if (Math.random() < 0.55) danmaku();
+  }, 1400);
+  const bursts = setInterval(() => burst(18), 30_000);
+
+  void (async () => {
+    status("Game");
+    setQueue(queue);
+    await wait(600);
+    for (let turn = 1; !stopped; turn++) {
+      const line = LINES[(turn - 1) % LINES.length] as Line;
+      await speak(`demo-${turn}`, line);
+      // The Stage merges gifts; the demo just shows a plain and a merged line in turn.
+      emit({ type: "gift", text: turn % 2 === 1 ? "Owen 餵了她一碗白飯" : "Owen 和另外 3 人餵了她 5 碗白飯" });
+      await wait(2600);
+      emit({ type: "gift", text: null });
+      // A paid message every other round, two on the others (they queue, one at a time).
+      if (turn % 2 === 1) emit({ type: "screen", name: "Mia", text: "今天的直播也太棒了吧" });
+      else {
+        emit({ type: "screen", name: "Owen", text: "給正在加班的你" });
+        emit({ type: "screen", name: "Kai", text: "晚安大家,明天見" });
+      }
+      if (turn % 2 === 0 && !stopped) {
+        await sing(turn / 2);
+        await wait(2000);
+      }
+    }
+  })();
+
+  return () => {
+    stopped = true;
+    clearInterval(levels);
+    clearInterval(touches);
+    clearInterval(trickle);
+    clearInterval(bursts);
+    for (const t of timers) clearTimeout(t);
+    timers.clear();
+  };
+}

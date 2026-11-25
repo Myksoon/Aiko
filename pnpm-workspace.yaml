@@ -1,0 +1,8 @@
+# One pnpm workspace for every TypeScript package.
+packages:
+  - "packages/*"
+  - "apps/*"
+  - "tools/*"
+  - "extensions/*"
+  - "extensions/*/adapter"
+  - "extensions/examples/*"

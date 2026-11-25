@@ -1,0 +1,1825 @@
+# Aiko 設定檔。複製成 miyoria.toml,或執行 `npx miyoria init`;之後用 `miyoria config` 修改。
+# 字串可以用 ${ENV_VAR} 或 ${ENV_VAR:-預設值} 引用環境變數 / .env。
+
+[core]
+profile = "deepseek-chan"          # profiles/<id>/;它有自己的 miyoria.toml 時改用那份設定和它的 data/(`miyoria profile`)
+profiles_dir = "profiles"
+database_url = "${DATABASE_URL:-sqlite:data/miyoria.db}"   # 只支援 SQLite:sqlite:<路徑> 或 memory://
+log = "info,miyoria=debug"
+
+# 她是誰(這個 profile 的角色,docs/design/v5-profiles.md);不寫 = Miyoria。改了要重啟 core
+# [character]
+# name = "Miyoria"
+# short_name = "Miyo"               # 大部分人怎麼叫她;"" = 沒有
+# other_names = ["米優", "みよ"]     # 簡稱的其他寫法,叫到也算在叫她
+# pronoun = "她"
+# exchange_name = "深海交易所"       # 交易所的名字(幣名是 [modules.economy] currency)
+# creature = "鯨魚"                 # 她是什麼,一個詞(卡上的字「有…的小毛病」);"" = 不特別寫
+
+# ---- LLM ----------------------------------------------------------------
+# 任何 OpenAI 相容 API 都可以:填 base_url、api_key,模型 id 在 purposes 裡。
+[llm.providers.deepseek]
+kind = "deepseek"                  # deepseek | openai | openai-compatible
+base_url = "${LLM_BASE_URL:-https://api.deepseek.com}"
+api_key = "${LLM_API_KEY:-}"
+
+# 全域預設;profile.toml 的 [llm.purposes] 會覆寫
+[llm.purposes]
+chat = ["deepseek:deepseek-chat"]
+# 高風險動作的自我審核;不設就用 chat 的模型(啟動後第一次審核會記一行警告)
+review = ["deepseek:deepseek-chat"]
+# 看直播時看畫面用的模型,要收圖片(見下面的 [llm.image_input]);不設就用 chat 的模型
+# watch = ["provider:model"]
+
+# 推理等級(off | low | medium | high),依用途,沒列的用途用預設值(沒有預設的 = 不思考)。
+# 不急的判斷開、要即時的關。舊的 [llm.thinking] 開關已經不讀了(啟動時會警告)。
+# openai、opencode 直接送 reasoning_effort(opencode 上的 DeepSeek 只分
+# low / high,medium 會被當成 high,off 送 thinking = disabled),不會壓 max_tokens。只有開關的
+# (deepseek / openai-compatible)low / medium / high 都是「開」,再用 max_tokens 限制長度,
+# 這個上限連回答一起算,太小會把回答切掉(provider 設定 reasoning_effort = true / false 可以改,
+# reasoning_max_tokens = { low = 2048, medium = 8192 } 是預設上限)
+[llm.reasoning]
+chat_voice = "off"     # 語音回話(語音這一輪固定不思考,這個鍵沒有作用)
+chat_text = "off"      # 一般文字回話
+fast = "off"           # 灰色區判斷、翻譯
+reflect = "high"       # 每晚的反思和對每個人的反思
+# review = "medium"    # 高風險動作的自我審核
+# summarizer = "off"   # 對話整理、記憶整理
+# 小幫手(delegate)固定用 high,是跑者的設定,不看這裡的 work;work 目前沒有作用
+# work = "high"
+
+# 看圖:聊天模型支援圖片時,她直接用它看圖(deepseek-v4.1-flash 可以)。
+# 不收圖片的模型或 provider 標 false(沒列的 = 收);被 API 拒絕時也會自動改送文字並記住
+# [llm.image_input]
+# "ollama" = false
+# "opencode:some-text-model" = false
+
+# 價格(USD / 百萬 token)與預算;不設就不限制
+# [llm.pricing."deepseek:deepseek-chat"]
+# input_per_mtok = 0.27
+# cached_input_per_mtok = 0.07
+# output_per_mtok = 1.10
+# [llm.budget]
+# daily_usd = 2.0
+# monthly_usd = 40.0
+# degrade_at = 0.8           # 用到 80% 時改用便宜模型 / 少主動發話
+# on_exhausted = "stop"
+
+# 呼叫紀錄:每次呼叫 LLM 都寫一行到 <dir>/<UTC 日期>.jsonl(用途、模型、送出的訊息與工具、推理與取樣設定、
+# 回覆、用量、耗時、錯誤),Core 重啟後還查得到,也能拿來重播評估。裡面有大家說的話,只存在這台電腦上;
+# API key 和 provider 設定不會寫進去。寫不進去時只丟掉那幾行,不會拖慢或擋住呼叫
+# [llm.call_log]
+# enabled = true             # false = 不寫
+# dir = "data/llm-calls"     # 相對於 miyoria.toml 所在的資料夾
+# keep_days = 14             # 保留最近幾天(含今天);更舊的檔案在啟動時和每天刪掉
+# max_mb_per_day = 512       # 當天的檔案超過這個大小後,當天其餘的呼叫只記用途、模型、用量等,不記內容
+# bodies = true              # false = 一律不記訊息和回覆內容
+
+# ---- 長期記憶 --------------------------------------------------------------
+# embedding:讓記憶(情節、事實)和筆記本的每一行也能用「意思」找,不只用共同的字。預設關著
+# (provider = "none":全文檢索 + 新舊 + 重要度,和沒有這段一樣)。
+# 選定的是 Harrier-OSS-v1 270M(fp16),在這台機器的 CPU 上跑,成員說的話不會離開這台機器,不搶 GPU。
+# 要開的話:
+#   1. 裝執行環境(一次):pnpm --filter @miyoria/memory add @huggingface/transformers
+#   2. 模型檔放進 models_dir/onnx-community/harrier-oss-v1-270m-ONNX/:config.json、tokenizer.json、
+#      tokenizer_config.json、onnx/model_fp16.onnx、onnx/model_fp16.onnx_data(下面 allow_download = false,不連網路)
+#   3. 把下面這段取消註解,重開 Core。舊的記憶和筆記在背景補向量(每兩分鐘一批);
+#      `miyoria memory rebuild --apply` 最後也會一次補完並說還剩幾行
+# 換成 0.6B 只改 model(= "onnx-community/harrier-oss-v1-0.6b-ONNX")和 [modules.memory] 的 min_vector(0.55)。
+# 換模型後舊的向量不再拿來比,背景會用新模型重算。
+# [memory.embedding]
+# provider = "local"             # none(預設,不用 embedding)| local | openai-compatible
+# model = "onnx-community/harrier-oss-v1-270m-ONNX"   # 空 = Xenova/multilingual-e5-small
+# dtype = "fp16"                 # 權重型別(模型檔的後綴);Harrier、Qwen3 用 fp16,q8 對 Qwen3 損失明顯、對 Harrier 慢很多
+# pooling = ""                   # 空 = 依模型名稱(Harrier 用模型自己輸出的向量,Qwen3 last_token,bge-m3 cls,e5 mean)
+#                                # 也可以指定 mean | cls | last_token | model;前綴(query_prefix / passage_prefix)同樣依模型預設
+# threads = 2                    # worker 用的 CPU 執行緒;留給語音用的核心不要佔
+# models_dir = "D:/models"       # 模型檔放哪裡(空 = 執行環境自己的快取)
+# allow_download = false         # false = 只用本機已有的檔案,不連網路(連不上 Hugging Face 時就這樣用)
+# batch_size = 1                 # CPU 上一次一句最快
+# timeout_secs = 30              # 第一次呼叫要先載入模型
+# 不在這台機器上跑的話,也可以接 Ollama / LM Studio / OpenAI 這類 /embeddings 端點(取代上面那段):
+# [memory.embedding]
+# provider = "openai-compatible"
+# base_url = "http://127.0.0.1:11434/v1"
+# model = "bge-m3"
+
+# ---- MCP 工具 --------------------------------------------------------------
+# [mcp.servers.files]
+# transport = "stdio"
+# command = "npx"
+# args = ["-y", "@modelcontextprotocol/server-filesystem", "C:/data"]
+# tools_allow = ["read_*"]
+# trust_read_only_hint = true    # 相信 server 標的 readOnlyHint:同一步的這類呼叫同時跑
+
+# ---- 這台電腦跑什麼 ----------------------------------------------------------------
+# 這台電腦跑哪些服務(core、asr、tts、sing、turn、voice-node、stage ...)寫在同一個資料夾的 host.toml,
+# 不在這個檔案:`miyoria init` 會問,`miyoria add asr tts` 加上服務,`miyoria up` 啟動,
+# `miyoria status` 看狀態,`miyoria doctor` 檢查缺什麼。
+# 下面的 [speech.*]、[modules.sing]、[modules.voice]、[modules.imagegen] 不用寫服務的位址:
+# 這台電腦的 hostd(或已加入的別台電腦)會回報有哪些服務,Core 自己找得到。
+# 歌曲快取自己清,最久沒用的先刪(預設留 6 GB、14 天;workers/README.md 第 9 節),要改就在 host.toml 寫:
+# [services.sing]
+# env = { SING_CACHE_MAX_GB = "10", SING_CACHE_MAX_DAYS = "30" }
+# 判斷講完(Smart Turn + Silero,跑在 CPU)是選用的:`miyoria add turn`,並自己下載模型(workers/README.md 第 10 節);
+# 模型沒放好 worker 照常啟動,她會退回安靜多久就算講完,doctor --deep 會提醒
+
+# ---- 語音辨識 / 合成 -------------------------------------------------------
+# 本機 worker 見 workers/README.md;也可以換成雲端(kind = "openai")
+[speech.asr.local]
+kind = "http-worker"
+# 不寫 url:Core 找這台(或別台)電腦上的 asr。要釘在固定位址(沒有 hostd 管的 worker)就加:
+# url = "http://127.0.0.1:8003"
+
+# workers/tts 預設用 faster-qwen3-tts(原生 Windows、真串流)
+# 另一個選項:WSL2 / Docker 上的 vLLM-Omni(見 workers/README.md 第 3 節)
+# [speech.tts.qwen]
+# kind = "vllm-omni"
+# base_url = "http://127.0.0.1:8091/v1"
+# voice = "deepseek-chan"
+# language = "Chinese"
+
+[speech.tts.local]
+kind = "http-worker"
+# 不寫 url:Core 找這台(或別台)電腦上的 tts;釘在固定位址的寫法同上
+# url = "http://127.0.0.1:8002"
+voice = "deepseek-chan"
+
+# ---- 子系統 --------------------------------------------------------------
+# 每個 [modules.<id>] 都可以加 enabled = false 關掉
+# (agent 和 arbiter 例外:她的嘴和發言權都在這兩個模組,不能關,寫了會讓啟動失敗)
+
+# 擁有者只在這裡設定(舊設定檔的 [modules.auth] owners 仍然有效,兩邊會合併)
+[modules.commands]
+owners = ["discord:${MIYORIA_OWNER_ID:-0}"]
+# 隱私政策的連結(https://),顯示在 /me i 的「隱私」與「記憶與刪除」頁;不填就顯示尚未提供
+# privacy_policy_url = "https://example.com/privacy"
+
+# 誰看得到指令的回覆:"public"(整個頻道)或 "private"(只有下指令的人);警告與錯誤一律只有本人看得到。
+# 預設:多數指令公開;me profile / me privacy / me link / me call / me memory ...、voice consent、
+# 所有 admin ... 與 /me i、/admin i 面板是私人的。鍵是指令路徑或整組的前綴("me" 管整個 me),
+# 最長的符合者優先;打錯的路徑啟動時會有警告。
+# [modules.commands.visibility]
+# "me wallet" = "private"
+# "miyo" = "private"
+# "me" = "private"           # me 底下全部私人(除非另外列出)
+# "me checkin" = "public"
+
+# 角色與權限節點(owner > admin > moderator > trusted > user > restricted > blocked)
+[modules.auth]
+# default_role = "user"
+
+[modules."platform.discord.bot"]
+token = "${DISCORD_BOT_TOKEN:-}"
+# 填伺服器 id 可以讓 slash command 立即生效;空的 = 全域(最多要等一小時)
+# id 要加引號,例如 ["123456789012345678"](數字太大,TOML 整數會失真)
+# 寫 ["*"] = 她在的每個伺服器,之後加入的伺服器也會馬上拿到指令
+# 每次啟動會清掉全域(或全域模式下各伺服器)留下的舊指令;沒列到的伺服器的指令不會被清掉。
+# 指令清單有重複時可執行一次 `miyoria discord commands reset`
+command_guilds = []
+# Discord 會看到完整的指令樹;/miyo /song 直接開面板,有子指令的 /me /admin 用 /me i /admin i 開面板。
+# 伺服器訊息的收聽範圍(docs/design/v3-architecture.md §19 第 4 項):
+#   "allowlist"(預設):只有提及她、回覆她的訊息,或 ambient_channels 內的頻道她才讀得到;私訊一律可以
+#   "tiers":每則訊息都交給她,由 /miyo 的「聊天等級」(關閉 / 只回提及 / 可以聊天)決定她插不插話
+# 頻道 id 要加引號。這兩項(和下面表情、貼圖的 enabled、descriptions)可以在面板每個伺服器各設各的;
+# 後來加入的伺服器在設定之前只讀得到提及她、回覆她的訊息
+ambient_text = "allowlist"
+ambient_channels = []
+# 一個頻道自己的跟隨(面板每個頻道各設):true = 跟隨它的聊天,false = 列在 ambient_channels 也不跟隨;檔案裡通常不寫
+# ambient_follow = true
+# 讓她知道誰在線、在玩什麼、誰在哪個語音頻道。要先在 Developer Portal → Bot →
+# Privileged Gateway Intents 打開 Presence Intent 與 Server Members Intent;
+# 沒開就設成 false,否則 Discord 會拒絕連線
+presence_intents = true
+# 她傳給人的檔案(附件)一則訊息加起來最多幾 bytes。預設 10 MiB 是 Discord 一般伺服器的上限,
+# 加成過的伺服器收得更大,調大才有用。
+# max_upload_bytes = 10485760
+
+# 伺服器自訂 emoji(docs/design/server-emoji.md):她看得到每個 emoji 的意思、寫 :名字: 就會送出那個 emoji。
+# 沒寫意思的 emoji,如果聊天模型看得懂圖,會自己看一次圖寫一句(存起來,只看一次)。
+# 頻率:一則最多 per_message 個;她在同一個頻道最近 window_messages 則裡最多 max_in_window 則有;同一個不連續用。
+# 按表情反應(react)也可以用 :名字:,次數照 [modules.agent.rhythm] 的反應上限。清單放在主線提示詞對話紀錄前面那段
+# (字數上限是 [modules.agent.mainline] 的 emoji_chars)。
+# [modules."platform.discord.bot".emoji]
+# enabled = true
+# auto_describe = true
+# max_listed = 40
+# per_message = 1
+# window_messages = 3
+# max_in_window = 1
+# descriptions = { fanfan = "一碗白飯,討飯用" }
+
+# 伺服器貼圖(同一份文件):她看得到這個伺服器的貼圖和意思,在訊息裡寫 [貼圖: 名字] 就會跟著那則訊息送出那張貼圖
+# (別人傳的貼圖她看到的也是 [貼圖: 名字])。只有這個伺服器自己的貼圖,私訊和語音裡不能用。
+# 意思:這裡的 descriptions 優先,其次是看圖模型看一次寫的一句(存起來,只看一次;動態的 Lottie 貼圖看不了,只列名字和標籤),
+# 再來是伺服器自己寫的說明。頻率:一則最多一張;同一個頻道最近 window_messages 則裡最多 max_in_window 則有;
+# 同一張不連續用;每個頻道每小時最多 per_hour 張。超過的就拿掉,只剩貼圖的那則就不送。
+# 清單在主線提示詞對話紀錄前面那段,字數上限跟 emoji 一樣是 [modules.agent.mainline] 的 emoji_chars。下面都是預設值
+# [modules."platform.discord.bot".stickers]
+# enabled = true
+# auto_describe = true
+# max_listed = 20
+# window_messages = 5
+# max_in_window = 1
+# per_hour = 3
+# descriptions = { "貓咪鞠躬" = "道謝用" }
+
+# Admin API:CLI(`miyoria module ...`)和之後的管理面板用。token 由 `miyoria init` 產生
+[modules.api]
+bind = "127.0.0.1:7878"
+token = "${MIYORIA_API_TOKEN:-}"
+# Prometheus 指標在 GET /metrics,預設跟 /api 一樣要 Authorization: Bearer <token>
+# (Prometheus 用 authorization.credentials 帶 token)。設成 true 就不用驗證,
+# 但連得到 bind 位址(或前面的反向代理)的人都看得到。
+# metrics_public = false
+# 圖片訊息(錢包、個人卡、每週回顧、圖鑑、機率表這類算出來的圖)背後的那張圖,
+# 相對於工作目錄。留空 = 公開頁現在那一張(面板資料夾裡的 background.local.jpg);
+# 兩個都沒有就用面板的暮色漸層。
+# picture_background = ""
+# 對外的監聽位址(Cloudflare tunnel 指到這裡):只有公開頁、成員頁和網站本身,沒有任何管理 API。
+# 留空 = 照舊一個 bind 全包。設了之後 bind 只能是本機、tailnet 或區網的位址,
+# 管理面板和 CLI 走 bind,tunnel 改指到 public_bind(見 docs/design/v5-architecture.md §11)。
+# public_bind = "127.0.0.1:7885"
+
+# 管理面板用 Discord 登入(token 照樣能用)。三個值都填才會開啟;
+# redirect_uri 要跟 Developer Portal → OAuth2 → Redirects 裡的一模一樣,
+# 也要跟你在瀏覽器開面板的網址同源(見 docs/OPERATIONS.md)。
+# 擁有者與 admin 角色可以登入;其他角色要 `/admin perm allow` 給 admin.panel.access(唯讀)
+# 與 admin.panel.write(可修改)。
+# [modules.api.discord_oauth]
+# client_id = "${DISCORD_CLIENT_ID:-}"
+# client_secret = "${DISCORD_CLIENT_SECRET:-}"
+# redirect_uri = "http://127.0.0.1:7878/api/auth/oauth/callback"
+# redirect_uris = ["https://panel.example.com/api/auth/oauth/callback"]  # 其他網址:從哪個網址登入就回哪裡,每個都要在 Developer Portal 登記
+# session_days = 7
+# cookie_secure = true             # 預設:redirect_uri 是 https 就開
+
+# 公開頁:沒登入的人在根網址看到她現在在做什麼、歌單和今天的統計;用 Discord 登入但沒有
+# admin.panel.access 的人是「成員」,只看得到她眼中的自己,碰不到任何管理 API。
+# 下面都是預設值。enabled = false 就回到只有管理登入的樣子,沒有權限的登入會被拒絕。
+# [modules.api.public]
+# enabled = true
+# song_requests = true             # 成員可以在頁面點歌,算一般使用者的請求:權限、速率限制和規則都照走
+# cache_secs = 10                  # 同一份回應給所有人用多久,流量不會打到 Core 和語音
+# rate_per_minute = 60             # 每個訪客每分鐘的請求數(Cloudflare tunnel 後面看 CF-Connecting-IP)
+# rate_total_per_minute = 3000     # 所有訪客加起來每分鐘的請求數
+# utc_offset_minutes = 480         # 「今天」從哪個時區的午夜開始算
+# client_ip_header = "cf-connecting-ip"  # 這台電腦上的反向代理用哪個標頭帶訪客的位址(只信從本機來的連線)。nginx / Caddy 用 "x-real-ip" 或 "x-forwarded-for"(取最後一個),而且代理要自己設這個標頭、不要照轉訪客送的;空字串 = 不讀任何標頭
+
+# 她做的檔案的下載連結(https://<檔案網域>/f/<token>)。檔案網域要是自己的主機名(例如 files.example.com,
+# 不能和網站同一個),在 Cloudflare tunnel 指到下面的 bind。origin 留空 = 不發連結,附件照常能傳。
+# [modules.api.files]
+# origin = "https://files.example.com"
+# bind = "127.0.0.1:7886"          # 檔案網域自己的監聽位址,只送檔案,沒有 cookie
+# site = ""                        # 只給本人或伺服器成員的連結要登入的網站;空 = discord_oauth.redirect_uri 的網址
+# links_per_person_per_day = 20    # 每個人 24 小時內最多幾條連結
+# per_ip_per_minute = 60           # 每個訪客每分鐘的請求數
+# per_link_per_minute = 120        # 每條連結每分鐘的請求數(所有人加起來)
+# public_cache_secs = 300          # 有連結就能看的檔案讓 CDN 快取幾秒;0 = 不快取
+
+# 每台電腦的管家(hostd)連進來的控制連線:回報這台有哪些服務、位址和健康。預設開著;
+# 埠被占用時這個模組會失敗,Core 照常執行。
+# [modules.cluster]
+# bind = "127.0.0.1:7880"
+# public_url = "wss://core.example/cluster-link"  # Core 在反向代理後面時,join 給新機器的連線位址(沒設:用請求的主機名 + bind 的埠)
+# retry_secs = 30                # 呼叫失敗的服務先跳過多久(秒)
+# 每種能力先找哪幾台(主機的名字,或下面靜態登記的名字);沒列到的排在後面,健康的排在前面
+# [modules.cluster.order]
+# sing = ["friend-pc", "main-pc"]
+# 沒有管家管的服務(例如還沒升級的朋友那台翻唱服務):服務的位址只能寫在這裡
+# [modules.cluster.static.friend-sing]
+# provides = ["sing"]
+# url = "http://100.83.26.41:8005"
+# token = "${FRIEND_SING_TOKEN}"  # 那個服務有檢查 token 時
+# 每台電腦可以在它自己的 routes.toml 宣告好幾條連線路徑(tailnet、direct、tunnel,加上一直都在的控制連線);
+# Core 量每一條、照工作挑、失敗就換下一條(docs/design/v5-hostd.md §16)。下面都是預設值,只影響有 routes.toml 的電腦。
+# [modules.cluster.routes]
+# probe_secs = 300               # 每條路徑多久量一次延遲和連不連得上(秒)
+# sample_secs = 1800             # 閘道路徑多久測一次流量(秒);0 = 不主動測
+# sample_kib = 256               # 測流量抓多少(KiB,最多 1024)
+# timeout_ms = 5000              # 量測多久沒回應算失敗
+# rest_secs = [30, 120, 600]     # 失敗的路徑先跳過多久(連續失敗越多越久,最後一個重複)
+# chunk_mb = 64                  # 有內容上限的路徑(tunnel)下載時每段最多多大
+
+# Self 帳號語音節點(apps/voice-node)連進來的位址;token 由 `miyoria init` 產生
+[modules."voice.link"]
+bind = "127.0.0.1:7879"
+token = "${VOICE_LINK_TOKEN:-}"
+
+# Stage 節點(VTube Studio / OBS / overlay)連進來的位址
+[modules."stage.link"]
+bind = "127.0.0.1:7882"
+token = "${STAGE_LINK_TOKEN:-}"
+
+# 直播精華:直播中唱完一首歌、她情緒很強、聊天室突然很多訊息時,叫 OBS 存 replay buffer(最後幾十秒),
+# 檔案旁邊放一個 <檔名>.json 寫為什麼存。replay buffer 的長度和資料夾在 OBS 設定 → 輸出 → 重播緩衝。
+# [modules."stage.link".highlights]
+# enabled = true
+# cooldown_secs = 90             # 兩段精華至少隔多久
+# delay_ms = 4000                # 那一刻之後再等多久才存(反應也錄進去)
+# emotions = ["laugh", "surprised", "excited"]
+# emotion_intensity = 0.85
+# chat_burst_messages = 8        # chat_burst_secs 秒內這麼多句就算聊天室炸開(0 = 關)
+# chat_burst_secs = 20
+
+# OBS 智慧場景:每個場景的用途(chat 聊天 / game 遊戲 / brb 暫離 / starting 開場 / ending 結尾 / sing 唱歌)。
+# 第一次看到 OBS 的場景清單時用 fast 模型從名稱判斷(沒有模型就用關鍵字),面板「直播」頁可以改;
+# 這裡寫的最優先,面板不能改。導演:開台 → 開場再到聊天、開始玩遊戲 → 遊戲、直播中沒人講話或她離開語音
+# → 暫離、下播 → 結尾(先停留 ending_ms 再真的停播)、唱歌 → 唱歌(放原曲 MV,唱完回到原本的場景)。
+# 她也可以自己用 stage_scene 換。
+[modules."stage.link".scenes]
+# director = true
+# roles = { chat = "聊天", game = "遊戲", brb = "暫離", starting = "開場", ending = "結尾", sing = "唱歌" }
+# transition = { name = "Fade", duration_ms = 300 }   # 每次切換用的轉場(OBS 裡的名稱)
+# transitions = { game = { name = "Stinger" } }       # 個別用途的轉場(stinger 不用給長度)
+# starting_ms = 30000        # 開場畫面停多久
+# ending_ms = 6000           # 停播前結尾畫面停多久
+# brb_after_ms = 300000      # 直播中多久沒人講話就切暫離(0 = 不切)
+# manual_hold_ms = 120000    # 有人手動切場景後,導演多久不插手
+# min_switch_ms = 8000       # 兩次自動切換至少隔多久
+
+# 擴充套件資料夾(`miyoria ext list` / `miyoria ext dev`)。子資料夾 examples/ 不會載入;
+# 想試範例(/hello)就把 "extensions/examples" 加進來
+[modules.extensions]
+dirs = ["extensions"]
+# task_grace_ms = 5000      # 擴充的任務超過預算這麼久還沒回報結束,主機就判它逾時
+# 擴充只拿到白名單內的環境變數(PATH、TEMP、HOME…加上 manifest [env] pass 列的),拿不到這裡的密鑰。
+# 要多給一個擴充變數:
+# [extensions."miyoria.minecraft"]
+# env = { MIYORIA_MC_TOKEN = "${MC_TOKEN:-}" }   # 直接設定值
+# env_pass = ["MIYORIA_MC_*"]                    # 取代 manifest 的 [env] pass
+# minecraft_dir = 'C:\Users\<你>\AppData\Roaming\PrismLauncher\instances\<實例>\.minecraft'
+# 她要玩時自己用 Prism Launcher 開遊戲(實例 id 從 minecraft_dir 推,Prism 執行檔自動找)
+# prism_path = 'C:\Users\<你>\AppData\Local\Programs\PrismLauncher\prismlauncher.exe'
+# launch_world = "latest"      # 直接進最近玩的存檔;"" = 停在主選單
+# quit_on_stop = "launched"    # 停止玩時只關她自己開的遊戲(always / never)
+# Neuro Game SDK 橋接(extensions/neuro):開一個本機 WebSocket,讓整合了 Neuro Game SDK 的遊戲連上來,
+# 遊戲註冊的動作變成她可以選的動作。預設不開、不綁任何 port:host 的 enabled 預設是 true,所以另外用 serve 當開關。
+# 一次只接一個遊戲;遊戲傳來的文字都當資料,不是主人的指示。下面都是預設值,除了 serve
+# [extensions."miyoria.neuro"]
+# enabled = true
+# serve = false                  # true 才會開 WebSocket 伺服器
+# host = "127.0.0.1"             # 預設只有本機;改成別的位址,連得到的人都能對她的遊戲介面送資料(不要開到區網以外)
+# port = 8000                    # SDK 規格沒有規定 port,8000 是這個擴充的預設
+# games = []                     # 只接受這些遊戲名稱(startup 的 game);空 = 不限
+# character_id = "neuro"         # 回給遊戲的 characterId,只為了相容
+# display_name = "Miyoria"       # 回給遊戲的 displayName
+# result_timeout_s = 20          # 她選了動作後等遊戲回結果最久幾秒
+# force_timeout_s = 120          # 強制選擇沒人答最久留幾秒
+# force_max_attempts = 5         # 強制選擇中動作失敗,最多重試幾次
+# context_keep = 12              # 遊戲傳來的情境留最近幾則
+# max_actions = 48               # 遊戲最多註冊幾個動作
+# ping_interval_ms = 15000       # 多久 ping 一次;兩輪沒回就放掉連線
+
+# 遊戲(導演迴路)。`game start` 會先確認遊戲開著、模組連上了;沒開就請 adapter 自己開
+# (auto_launch),開不起來才拒絕並說原因。動作失敗後一陣子不給 goto / mine,逼她換方法
+# [modules.game]
+# default_game = "minecraft"
+# require_connected = true
+# auto_launch = true
+# launch_wait_secs = 240
+# failure_guard_secs = 45
+# task_budget_secs = 240     # 一個目標(任務)的預算;遊戲沒建議時用這個,不超過 max_goal_secs
+# directed_games = ["minecraft"]   # 導演只玩有目標的遊戲(Threads 已關閉,不再由導演驅動)
+# narration_repeat_mins = 45 # 同一件事(game:craft:stone_pickaxe)說過之後多久內不再要求開口;
+#                            # 她還是知道這件事,只是不會因此開口。過了才算新的一次
+# hazard_repeat_secs = 120   # hazard_events 的同一件事:隔一陣子再遇到就算新的
+# method_repeat_limit = 2    # 同一個方法(動作加物品,例如 obtain:bread)用同一個錯誤碼連續失敗這麼多次就擱置;0 = 不擱置
+# method_hold_secs = 600     # 擱置多久(method_release = "time" 時才用來解除)
+# method_release = "changed" # 擱置的方法什麼時候可以回來。changed:要有東西變了(缺的物品進了背包、別的方法帶她到了別處)才回來,
+#                            # 回來又失敗就馬上再擱置 | time:過了 method_hold_secs 就回來(2026-11-10 之前的舊行為,要退回才用)
+# director_lane = true       # 導演的每個決定是工作線裡一個任務的步驟(每個 session 一個,有自己的紀錄:看到什麼、決定什麼、結果如何);
+#                            # false = 每個決定各自一次呼叫(退回用;工作線沒有開時也是這樣)
+# director_steps = 6         # 那個任務的紀錄留幾個決定(更舊的掉出去,她的紀錄裡還有)
+# keep_skills = true         # 她在遊戲裡學到的技能重啟後還在(skills 模組有開就存進她的技能,一個遊戲一個,否則存在設定庫)
+# hazard_events = ["damage", "hostile_near", "reflex"]
+# urgent_events = ["death", "low_health", "reflex:lava", "reflex:drowning", "reflex:suffocation", "reflex:flee"]
+#                            # 這些一定會反應:不去重、不算沒人回應(kind 或 kind:主題)
+
+# 唱歌(點歌):歌曲 worker(workers/sing,見 workers/README.md 第 9 節)用她的聲音翻唱。
+# 有人點歌她自己決定要不要唱、什麼時候唱;/queue song request 是強制(好了、她有空就唱)。
+# 唱的時候插話不會打斷,/queue song skip | stop 才會。Go Live 要讓觀眾聽到歌,voice node 要 GOLIVE_AUDIO=true
+# [modules.sing]
+# # 位址只在服務沒有 hostd 管時才寫;hostd 管的(這台或已加入的電腦)不用寫
+# url = "http://127.0.0.1:8005"
+# fallback_urls = []         # url 連不上時依序改用這些 worker(例:url 是朋友的顯卡,這裡放本機 "http://127.0.0.1:8005");docs/sing-remote-host.md
+# fallback_retry_secs = 30   # 連不上的 worker 這段時間內不再問;一首歌的 worker 連不上超過這麼久,就在下一台重做
+# start = "decide"           # decide:準備好了她挑時機唱;auto:好了就唱
+# max_pending_per_user = 2   # 每個人同時最多幾首在歌單上
+# lyrics = true              # 同步歌詞變成 overlay 字幕
+# lip_sync_vocals = true     # 嘴型跟轉換後的人聲走(不是整首混音)
+# vote_skip_ratio = 0.25     # /queue song voteskip:語音裡這個比例的人投了就跳過(無條件進位)
+# vote_skip_min = 1          # 至少幾票;點歌的人自己投一票就跳過
+# video = true               # 唱的時候在直播畫面放原曲影片(靜音);Stage 用 [stage.obs] song_video_source 播
+# video_dir = "data/songs"   # worker 的 SING_DATA_DIR(直播機上的路徑),不在裡面的影片不會送
+# video_source = "worker"    # 影片從哪來。worker:從做歌的 worker 拿(worker 在別台、連線慢時常常唱完都還沒到);
+#                            # local:Core 自己用 yt-dlp 從歌的連結下載,失敗才跟 worker 拿。只有 worker 說有影片的歌才放
+# ytdlp_path = "yt-dlp"      # video_source = "local" 時執行的 yt-dlp(PATH 上的名字或完整路徑;轉 mp4 要有 ffmpeg)
+# video_max_height = 1080    # video_source = "local":最高幾 p
+# video_max_mb = 300         # video_source = "local":超過這麼多 MB 的不下載
+# audio_dir = "data/song-audio"  # 做好的歌的音檔先傳到 Core 這裡,傳完才算準備好,唱的時候從這裡讀(worker 在這台時直接讀 video_dir,不另存)
+# audio_cache_mb = 2048      # audio_dir 最多佔多少 MB(一分鐘的歌約 6 MB,有嘴型用的人聲是 12 MB);超過就刪最久沒唱的,歌單上的不刪
+# fetch_stall_secs = 30      # 從 worker 拿檔案(音檔、影片、卡拉 OK 檔)時,這麼久一個位元組都沒來才放棄;慢但有在動就一直等
+# prepare_notice = true      # worker 做歌要整張顯示卡時(SING_OFFLOAD_URLS),她先說「我去準備一下歌喔」再讓它開始
+# prepare_notice_gap_secs = 180   # 連點好幾首時這段時間內不再說第二次
+
+# 看直播(opt-in,預設關閉)。她在語音頻道時,自己決定要不要看頻道裡誰的 Go Live、什麼時候換人或不看,
+# 也可以請她看(她可以不看,指令是 /voice watch start、/voice watch stop);定時看一張畫面、聽直播的聲音、記幾則筆記,有值得講的才開口。
+# 本人可用 /me privacy watch:off 拒絕被看(要開著 actions 模組,不然誰都拒絕不了,她就誰都不看);被看時語音頻道的文字區會有一張通知。
+# 要有語音節點(支援看直播)、能收圖片的模型(用途 watch,沒設就用 chat),聽直播的聲音另外要有語音辨識。
+# [modules.watch]
+# enabled = false
+# snapshot_secs = 30           # 兩次看畫面的間隔(從上一次看完算起)
+# active_secs = 300            # 語音頻道裡這麼久沒人說話,她就不自己看畫面(省 token;有人問還是會看)。0 = 一直看
+# image_detail = "high"        # 圖給模型看多細:high 讀得到畫面上的字;low 約 512 px,只要三分之一的 token,但讀不到字
+# speak_min_secs = 60          # 她自己開口講直播的事,兩句至少隔幾秒
+# quiet_secs = 10              # 有人剛講過話(語音頻道裡別人)這麼久內她不插嘴
+# notes_keep = 10              # 留幾則畫面筆記(看完這場就丟,不存檔)
+# transcript_secs = 180        # 留幾秒直播裡說的話
+# min_watch_secs = 180         # 她自己決定的話,一場至少看這麼久才換人;別人請她換不受限
+# starts_per_hour = 6          # 一小時最多開始看幾場(不分是誰請的)
+# looks_per_hour = 60          # 一場一小時最多看幾次畫面(自己看的、剛開始那一眼、有人問的都算);到了就只用筆記回答
+# max_watch_mins = 120         # 一場最多看幾分鐘
+# max_snapshot_failures = 5    # 連續幾次拿不到畫面就不看了
+# notice_hours = 24            # 同一個人被看,通知至少隔幾小時再發
+
+# 魚幣(docs/design/economy.md):陪她就賺得到(簽到、說話、語音、點的歌唱完、她自己送),
+# 只能花在餵她和小禮物上。不能用真錢買、不能轉給別人,也幾乎買不到好感:每份付錢的禮物只讓好感動一點點。
+# 她不認識或封鎖了的人看到的是空錢包。下面都是預設值;enabled = false 就關掉。
+# [modules.economy]
+# enabled = true
+# currency = "魚幣"
+# checkin = 10                # 每天簽到一次(面板和 Discord 合計)
+# streak_bonus = 20           # 連續簽到的第 7、14、21… 天多給
+# talked = 5                  # 當天她看到你說過話(文字或語音),一天一次
+# voice_per_10min = 2         # 在她的語音頻道,而且這 10 分鐘裡有開口
+# voice_cap = 20
+# song_finished = 5           # 你點的歌她唱完了
+# song_cap = 3                # 一天算幾次
+# her_gift_per_person = 30    # 她的 give_coins:每人每天最多
+# her_gift_total = 100        # 她的 give_coins:所有人加起來每天最多
+# rice = 10                   # 一碗白飯:hunger −0.15
+# big_bowl = 40               # 大碗(鋼盆):hunger −0.5,開台時出現钢盆表情幾秒
+# dessert = 25                # 甜點:hunger −0.05
+# expression = 20             # 她用自己的錢包給自己換一個表情(buy_for_self):開台中、沒在唱歌時;沒出來就退回
+# feed_hunger_cap = 0.85      # 一個人一天最多讓她少餓多少(白飯 0.15、鋼盆 0.5、甜點 0.05);超過就吃不下、不扣錢
+# diminish = 0.6              # 同一個人當天第 n 份禮物,情緒乘上 0.6^(n-1)
+# gift_affinity = 0.4         # 每份付錢的禮物(餵食)加的好感,再乘社交引擎的遞減
+# gift_trust = 0.1            # ...和信任
+# gift_affinity_cap = 1.5     # 禮物本身每人每天最多加的好感(也算進一般每日上限)
+# gift_trust_cap = 0.5        # ...和信任
+# # ---- 花在卡片、歌、畫面上(docs/design/economy.md §13):價格,和一個人一天最多買幾次(每日 0 = 下架;退款的不算)
+# card_foil = 50              # 下一張卡的亮面,只是外觀
+# card_foils_per_day = 5
+# screen_message = 30         # 在直播 overlay 顯示一則短訊息(她可能念出來)
+# screen_messages_per_day = 10
+# screen_message_cooldown_s = 600   # 每個人多久能送一則
+# # ---- 直播彈幕(docs/design/v5-play.md §11.6):她開台時,會員花魚幣發一則從畫面右邊飄過的短句。
+# # 送出時扣款,overlay 沒顯示出來(直播機沒連上、還沒輪到就關台、排隊滿了或等太久)就自動退回。
+# # 她不會每一則都被問:每 danmaku_note_s 秒最多收到一則摘要,裡面有幾則彈幕。不念出來。
+# # 不讓某個人發:/admin person tag user:<他> tag:no_danmaku
+# danmaku_on = true
+# danmaku = 5                 # 一則多少魚幣(燒掉,算進回收)
+# danmaku_max_chars = 30      # 最多幾個字(1 到 100)
+# danmaku_cooldown_s = 20     # 每個人隔多久能再發
+# danmaku_per_day = 50        # 每個人一天最多幾則(退回的不算)
+# danmaku_max_on_screen = 12  # 畫面上最多幾則,其他的排隊
+# danmaku_show_names = true   # 彈幕前面用小字寫發的人
+# danmaku_note_s = 60         # 多久告訴她一次(沒有彈幕就不說)
+# danmaku_queue_max = 20      # overlay 上最多幾則在排隊,再多的直接退回
+# danmaku_max_wait_s = 30     # 排隊超過這麼久就不顯示、退回
+# fortune = 10                # 簽到時加買的籤詩,她幫你寫一張
+# fortunes_per_day = 1
+# # ---- 人和人之間(§13):transfer_max = 0 或任一個每日上限 = 0 就關閉轉帳
+# transfer_max = 50           # 一次轉帳最多(收到的數量)
+# transfer_fee = 0.05         # 手續費:轉出數量的這個比例,進位、至少 1,由轉的人另付,燒掉(0 就不收)
+# transfer_out_per_day = 100  # 一個人一天最多轉出
+# transfer_in_per_day = 100   # 一個人一天最多收到
+# board_days = 30             # 贊助榜統計過去幾天花在她身上的
+# # ---- 她自己的錢包(§13):付費禮物的一部分是她的
+# her_share = 0.2             # 付費禮物(餵食、螢幕訊息、獻詞)她留多少比例
+# treat_per_person = 30       # 她請一個人一天最多
+# treat_total = 100           # 她請所有人一天最多
+# self_expressions_per_day = 3   # 她自己買表情一天幾次(價格是 expression)
+# bounty_max = 50             # 懸賞:一個最多付多少
+# bounties_open = 3           # 同時最多幾個
+# bounty_days = 3             # 一個開幾天
+# agency_sweep_s = 60         # 多久結算一次結束的懸賞
+# # ---- 經濟 2.0(docs/design/v4-plan.md §10)------------------------------------------------
+# # 一起玩、參與(play.ts):各種活動給多少、一種活動一天最多給一個人幾次、全部加起來一天最多。0 = 關掉
+# play_rewards = { game_join = 5, game_finish = 10, game_win = 5, sing_along = 5, headpat = 1, web_reaction = 1, prediction_join = 3 }
+# play_per_activity_per_day = 10
+# play_cap = 40
+# # 每天三個小任務(聊一件新的事、和大家一起玩一場、她替你想的一件事):一個給多少、三個都完成多給多少、一天最多(三個加獎勵)
+# quest_reward = 10
+# quest_bonus = 15
+# quest_cap = 45
+# quest_topic_days = 14       # 「聊點新的」任務:一個話題這麼多天內不能重複
+# quest_together_min_people = 2   # 「和大家一起」:一場遊戲或一首聽完的歌至少要幾個人(含自己,不含她)
+# quest_pick_by_her = true    # 「她替你想的」由她從記得你的事裡寫;false:都用一般的
+# quest_pick_secs = 20        # 她最多想幾秒,想不出來就用一般的
+# # 成就和稱號:一次性獎勵(依大小)和一天最多
+# achievement_small = 10
+# achievement_big = 30
+# achievement_cap = 60
+# # 預測:一個人一場最多下注、一天最多、最長開放幾分鐘、同時最多幾場、關閉後沒結算幾小時就退回全部賭注
+# bet_max = 50
+# bet_daily_max = 100
+# prediction_max_minutes = 120
+# predictions_open = 3
+# prediction_expire_hours = 24
+# prediction_rake = 0.05      # 有人猜中時從獎池抽幾成燒掉(0 到 0.1);全部退回時不抽
+# # 自己結算的預測(海龜湯會不會被猜中、她的遊戲目標做不做得到):押注最多開幾分鐘,截止後等結果最多幾分鐘,等不到就全部退回
+# prediction_auto_close_minutes = 5
+# prediction_auto_wait_minutes = 120
+# # 她的房間:大家一起出錢買的家具、衣服、背景(room_items = [{ id, label, kind = "furniture" | "outfit" | "background", price }])
+# room_pledge_max = 100       # 一個人對一件最多出多少
+# # 經濟健康表:顯示幾天,和一週內發出去的幣被收回的比例低於多少就標「通膨」
+# health_days = 14            # 1 到 90
+# health_warn_ratio = 0.6
+# utc_offset_minutes = 480    # 「今天」從哪個時區的午夜開始算
+# frames = [                  # 卡框:只是外觀,不影響她
+#   { id = "sakura", label = "櫻花", price = 100 },
+#   { id = "abyss", label = "深海", price = 150 },
+#   { id = "gold", label = "金框", price = 300 },
+# ]
+# twd_per_coin = 1                 # 固定匯率:一魚幣等於幾新台幣(一碗白飯 10)。自己取名的禮物照這個換算;
+# #                                 交易所的 twd_per_coin 應該和這個一樣(同一個匯率)
+# # ---- 自己取名的禮物(docs/design/economy.md §16):會員寫一樣東西(「一杯珍奶」),系統問一次小模型,
+# # 估一個普通款在台灣大概多少新台幣,用上面的 twd_per_coin 換成魚幣(四捨五入,夾在 min_coins 到 max_coins);
+# # 名字裡寫的價錢不算。同一個名字對每個人都一樣,第一次的估價記住(記的是台幣,改匯率價錢跟著變)。
+# # 會員看到「約 NT$X → Y 魚幣」按確認才扣,她自己決定收不收,不收全部退回;白飯、鋼盆、甜點照舊,不用確認。
+# # 錢的去向和餵食一樣(her_share 給她,其他燒掉)。吃的、喝的算進上面的 feed_hunger_cap。
+# # 任何價錢的禮物都不會改變羈絆。名字可以在面板「經濟 → 禮物」指定價錢(魚幣或台幣)或封鎖。
+# [modules.economy.free_gifts]
+# on = true
+# min_coins = 1                     # 最便宜一魚幣
+# max_coins = 1000000               # 只是防呆的上限:估價超過這個(乘上匯率)就當沒估到
+# fallback_coins = 50               # 估不到價(沒有模型、失敗、不合理的答案)時用的價錢,確認畫面會說,不記住
+# big_gift_coins = 1000             # 超過這個,確認畫面多一行「這是一份大禮」和送出後的餘額
+# band_coins = [100, 1000, 10000]   # 她看到的價錢感覺:到 100 隨手的小東西、到 1000 有點心意、到 10000 很貴重、再上去誇張
+# food_hunger_max = 0.5             # 吃的最多讓她少餓多少:max × 魚幣 ÷ (魚幣 + half),喝的一半
+# food_hunger_half_coins = 100      # 多少魚幣的吃的讓她少餓 max 的一半(一杯 60 的飲料約 0.09)
+# max_chars = 24                    # 名字最多幾個字
+# confirm_s = 180                   # 多久內要按確認;過了就作廢,不扣錢
+# answer_s = 300                    # 她這麼久沒回答就當她收下(和餵食一樣不等她)
+# per_day = 3                       # 一個人一天最多送幾份(0 = 關掉)
+# coins_per_day = 0                 # 一個人一天最多花多少在這些禮物上(0 = 不限)
+# objects_per_day = 2               # 吃喝以外的,一個人一天最多幾份
+# price_calls_per_person = 5        # 一個人一天最多讓系統問幾次價(問過的名字不算)
+# price_calls_per_day = 200         # 所有人加起來一天最多問幾次價;用完就「晚點再試」,不扣錢
+# price_timeout_s = 15              # 問價最多等幾秒,等不到用 fallback_coins
+# # 在聊天裡跟她說「送你一杯珍奶」:她貼一張報價卡,只有要送的人按確認才扣(白飯也要按一次)。
+# chat_window_s = 600               # 幾秒內在這裡說過話的人才能當送禮的人;下面兩個卡片數也照這段時間算
+# chat_cards_per_person = 3         # 一個人的話在這段時間最多叫出幾張報價卡(0 = 聊天裡不貼)
+# chat_cards_per_place = 8          # 一個頻道(私訊、語音)在這段時間最多貼幾張報價卡
+
+# 她給你的卡(docs/design/v5-play.md §2、cards.md):每日卡用魚幣買,每天第一張也要錢;部件照公開的機率抽,
+# 表情由你們的關係決定,買不到也抽不到。卡不能交易、不能送。卡框和閃卡在 [modules.economy](frames、card_foil)。
+# 舊的「抽收藏」拿掉了,已經有的收藏留在圖鑑的「舊收藏」。下面都是預設值。
+# 不用錢的卡(不必設定):羈絆升到沒到過的分級時一張里程碑卡(每一級一張,最多 15 張);
+# 從舊紀錄搬過來的人第一次看自己的卡時一張紀念卡。都不算進每天的張數,也不動保底。
+# [modules.cards]
+# enabled = true
+# price = 30                  # 一張每日卡多少魚幣
+# daily_cap = 5               # 一個人一天最多幾張(她的當地日)
+# pity = 20                   # 連續幾張沒有 SR 以上的部件,下一張保證有
+# rarity_weights = { N = 70, R = 22, SR = 7, SSR = 1 }   # 稀有度的權重(公開的機率表照這個算)
+# utc_offset_minutes = 480    # 「今天」從哪個時區的午夜開始算
+# # 卡上的立繪(docs/design/cards.md §6):live2d = 照抽到的部件和表情用她的 Live2D 模型現場算圖,
+# # 算不出來(沒設模型、card-studio 沒建置、沒有 Edge / Chrome)就用 10 張固定立繪;fixed = 一律用固定立繪
+# portrait = "live2d"
+# portrait_model = "C:/Program Files (x86)/Steam/steamapps/common/VTube Studio/VTube Studio_Data/StreamingAssets/Live2DModels/DeepSeek-chan/大肥鱼.model3.json"   # 沒設 = 用固定立繪
+# portrait_studio = "tools/card-studio"        # card-studio 的資料夾(照它的 vendor.md 放好 Live2D 的檔案再 build)
+# portrait_cache = "data/cards/portraits"     # 算好的圖,依「抽到什麼」的雜湊存,同一張卡只算一次
+# portrait_cache_max_mb = 2048                # 算好的圖最多佔多少 MB(一張約 1 MB);超過就刪最久沒用到的,要用時再算
+# portrait_browser = "msedge"                 # 無頭瀏覽器:msedge 或 chrome
+# portrait_timeout_secs = 30                  # 一張圖最多等多久
+# # 頻道裡的掉落(v5-play.md §6.2):頻道熱鬧時她偶爾丟一張卡,第一個按「撿起來」的人拿走(免費,帶一個只有掉落才有的部件)
+# drops = false               # 預設關;開了也只在 drop_channels 列的頻道
+# drop_channels = []          # 要掉落的頻道 id,例如 ["123456789012345678"]
+# drop_window_mins = 10       # 熱鬧 = 這幾分鐘內
+# drop_min_people = 3         #   至少這麼多人
+# drop_min_lines = 20         #   一共說了這麼多句(她自己、機器人的不算)
+# drop_chance = 0.25          # 熱鬧時掉一張的機率,一段時間只擲一次
+# drops_per_channel_day = 2   # 一個頻道一天最多幾次
+# drop_gap_mins = 120         # 同一個頻道兩次之間至少隔多久
+# drop_delay_min_secs = 30    # 決定要掉之後隨機等一下才出現,不能算準
+# drop_delay_max_secs = 180
+# drop_expire_mins = 10       # 沒人撿就飄走
+# drops_per_person_day = 1    # 一個人一天最多撿幾張;上一張是你撿的,同一個頻道的下一張你撿不到
+
+# 每週的市集(docs/design/v5-play.md §4.5、§11.4):點歌優先券、每週拍賣、每週樂透。下面都是預設值。
+# 魚幣都走經濟的帳本;得標的錢、用掉的優先券和三成的樂透會燒掉。她自己不能出價、買券或中獎。
+# [modules.market]
+# enabled = true
+# utc_offset_minutes = 480    # 「今天」「這週」從哪個時區算
+# # ---- 點歌優先券:/queue song request 加 priority(會員頁點歌也能勾),排到沒用券的歌前面;用券的照先後
+# song_priority = 40          # 一張多少魚幣;歌沒準備成功或被取消就退回
+# song_priority_per_day = 2   # 一個人一天最多幾張(0 = 不賣)
+# # ---- 每週拍賣:一週一件,在 auction_channel 公開出價(按鈕加表單),出價先押住,被超過就馬上退回
+# auction = true              # false = 不開新的;正在拍的取消,押著的全退
+# auction_channel = ""        # 拍賣的頻道 id;留空 = 不辦拍賣
+# auction_weekday = 6         # 星期幾開(0 = 星期日 … 6 = 星期六)
+# auction_time = "20:00"      # 幾點開(她的時間)
+# auction_hours = 24          # 開多久
+# auction_opening_bid = 50    # 起標
+# auction_step = 5            # 每次至少加多少
+# auction_extend_mins = 5     # 最後幾分鐘有人出價就延長這麼久(0 = 不延長)
+# auction_extend_max_mins = 30   # 延長最多到原本結束後幾分鐘(0 = 不延長)
+# auction_lots = ["frame"]    # 拍什麼:只此一件的卡框;加 "call_name"(這一週她怎麼叫你)才會拍稱呼。不只一種時她挑,沒有模型就輪流
+# auction_call_days = 7       # 得標的稱呼用幾天,之後換回原本的
+# auction_name_hours = 72     # 得標的人幾小時內要給一個她接受的稱呼,不然退款
+# auction_purpose = "market"  # 她挑拍品用的模型([llm.purposes];沒設 = 聊天那一組)
+# # ---- 每週樂透:依張數抽一個人;少於 lottery_min_buyers 個人買就不開獎、全額退回
+# lottery = true              # false = 不賣;這週已經賣的全額退回
+# lottery_channel = ""        # 每週公告和開獎發在哪;留空 = 拍賣的頻道(兩個都空就不公告)
+# lottery_price = 10          # 一張多少魚幣
+# lottery_per_week = 20       # 一個人一週最多幾張
+# lottery_prize_share = 0.7   # 獎金是賣出的這個比例,其餘燒掉
+# lottery_weekday = 0         # 星期幾開獎(0 = 星期日)
+# lottery_time = "20:00"
+# lottery_min_buyers = 3      # 至少幾個不同的人買才開獎
+
+# 深海交易所(docs/design/exchange.md):用魚幣模擬買賣真實的台股、美股(報價來自 Yahoo Finance,非官方、
+# 可能延遲或停掉),和五檔這裡獨家、跟她的生活有關的股票(新手推薦,一股約 100 魚幣,不開放槓桿)。
+# 交易所是對手方:買進的魚幣燒掉,賣出時重新發出;一筆 1% 手續費燒掉。買多少、持有多少、每天淨發出多少,預設都不設上限
+# (owner 2026-11-21:不然沒辦法玩);這表示漲的市場會讓魚幣變多,owner 頁有今天 / 7 天 / 30 天的淨發出和提醒。
+# 下面每個上限填 0 = 不限,填一個數字就生效。
+# 魚幣是遊戲點數,沒有現金價值,永遠不能換成真錢或現實中的物品。匯率固定:魚幣對台幣用
+# [modules.economy] twd_per_coin(預設 1 魚幣 = NT$1),美元對台幣用這裡的 twd_per_usd。
+# /me market overview(清單、報價圖、買賣)、/me market quote、/me market mine、/me market rich,和會員頁。預設不開。
+# [modules.exchange]
+# open = false                # 交易所開關:關著時不成交也不能下單;關掉時掛著的委託全部退回,持股留著
+# utc_offset_minutes = 480    # 「今天」從哪個時區算(每日上限、每日報表)
+# colors = "tw"               # 漲跌顏色的預設:"tw" 紅漲綠跌、"us" 綠漲紅跌;每個會員可以自己選(會員頁、/me market overview),每張圖都會標示
+# local_stocks = true         # 新手推薦的五檔獨家股票(價格由程式模擬,每天 12:00–23:00)
+# local_tick_seconds = 60     # 獨家股票幾秒跳一次(10–3600;3600 = 以前的每小時一筆)。一天的漲跌幅度、±10% 和開盤跳空都一樣
+# twd_per_usd = 30            # 一美元等於幾台幣(固定;改了所有美股持股的市值一起變,股數不變)
+# # ---- 報價(查代號、名稱和 K 線兩個市場都用 Yahoo Finance;台股的報價預設用證交所的即時報價)
+# provider_tw = "yahoo"
+# provider_us = "yahoo"
+# quotes_tw_provider = "twse" # 台股報價:"twse" 證交所自己的公開報價(晚幾十秒,出錯時改問 Yahoo),或 "yahoo" 只用 Yahoo(台股約晚 20 分鐘,一直太舊不能成交)
+# quotes_tw = "intraday"      # "intraday" 盤中報價,或 "close" 只用收盤價(委託在下一個收盤成交)
+# quotes_us = "intraday"
+# quote_poll_seconds = 60     # 多久問一次報價(只問有人持有、掛單、剛看過、或活躍的人觀察中的股票)
+# quote_max_age_seconds = 300 # 報價最久多舊還能成交;更舊就不成交、也不自動賣出
+# close_grace_minutes = 180
+# holidays_tw = []            # 休市日(那個市場自己的日期),例如 ["2026-12-25"]
+# holidays_us = []
+# batch_size = 20             # 一次請求最多幾檔
+# view_minutes = 5            # 看過的股票之後多久繼續更新報價
+# suspend_after_days = 3      # 有人持有的股票連續幾個交易日沒有報價就暫停,等 owner 結算
+# # ---- 哪些股票可以交易(誰查過的代號,第一次會向報價來源確認)
+# allowed_exchanges_tw = ["TAI", "TWO"]
+# allowed_exchanges_us = ["NMS", "NGM", "NCM", "NYQ", "ASE", "PCX", "BTS"]
+# allowed_types = ["EQUITY", "ETF"]
+# blocked = []                # 不能買進的代號(還能賣)
+# allow_only = []             # 非空時只有這些代號能交易
+# lookups_per_hour = 20       # 每人每小時最多查幾個新代號
+# negative_cache_minutes = 60 # 查不到的代號多久內不再問
+# # 熱門台股 / 熱門美股:代號、顯示名稱(沒寫就用報價來源的名稱)、產業(熱門股票圖的分組)和權重(格子大小,
+# # 約略照市值大小排的固定值,不是即時市值,可以自己改);只寫代號也可以("2330"),產業算「其他」、權重 1
+# starters_tw = [
+#   { code = "2330", name = "台積電", sector = "半導體", weight = 300 },
+#   { code = "2317", name = "鴻海", sector = "科技", weight = 30 },
+#   { code = "2454", name = "聯發科", sector = "半導體", weight = 23 },
+#   { code = "2308", name = "台達電", sector = "科技", weight = 20 },
+#   { code = "2382", name = "廣達", sector = "科技", weight = 11 },
+#   { code = "2412", name = "中華電", sector = "電信", weight = 10 },
+#   { code = "2881", name = "富邦金", sector = "金融", weight = 12 },
+#   { code = "2882", name = "國泰金", sector = "金融", weight = 10 },
+#   { code = "2891", name = "中信金", sector = "金融", weight = 9 },
+#   { code = "2303", name = "聯電", sector = "半導體", weight = 6 },
+#   { code = "1301", name = "台塑", sector = "原物料", weight = 3 },
+#   { code = "2002", name = "中鋼", sector = "原物料", weight = 3 },
+#   { code = "0050", name = "元大台灣50", sector = "ETF", weight = 6 },
+#   { code = "0056", name = "元大高股息", sector = "ETF", weight = 4 },
+#   { code = "00878", name = "國泰永續高股息", sector = "ETF", weight = 4 },
+#   { code = "006208", name = "富邦台50", sector = "ETF", weight = 2 },
+# ]
+# starters_us = [
+#   { code = "AAPL", name = "Apple", sector = "科技", weight = 38 },
+#   { code = "MSFT", name = "Microsoft", sector = "科技", weight = 38 },
+#   { code = "NVDA", name = "NVIDIA", sector = "半導體", weight = 45 },
+#   { code = "AMZN", name = "Amazon", sector = "消費", weight = 24 },
+#   { code = "GOOGL", name = "Google", sector = "科技", weight = 30 },
+#   { code = "META", name = "Meta", sector = "科技", weight = 18 },
+#   { code = "TSLA", name = "Tesla", sector = "消費", weight = 14 },
+#   { code = "BRK-B", name = "Berkshire Hathaway", sector = "金融", weight = 10 },
+#   { code = "JPM", name = "JPMorgan", sector = "金融", weight = 8 },
+#   { code = "V", name = "Visa", sector = "金融", weight = 7 },
+#   { code = "SPY", name = "SPDR S&P 500", sector = "ETF", weight = 7 },
+#   { code = "QQQ", name = "Invesco QQQ", sector = "ETF", weight = 4 },
+#   { code = "VOO", name = "Vanguard S&P 500", sector = "ETF", weight = 7 },
+#   { code = "VTI", name = "Vanguard Total Stock", sector = "ETF", weight = 5 },
+#   { code = "DIA", name = "SPDR Dow Jones", sector = "ETF", weight = 1 },
+# ]
+# watch_max = 20              # 觀察清單最多幾檔
+# watch_active_days = 3       # 觀察中的股票只有在那個人這幾天用過交易所、而且開盤時才更新報價
+# suggest_per_minute = 60     # 打字時的建議,每人每分鐘最多幾次(有快取,不會每打一個字就問報價來源)
+# component_minutes = 15      # Discord 上的按鈕和選單多久後過期
+# # ---- 開戶和委託(都是市價單,以下一筆有效報價成交)
+# account_min_days = 7        # 她認識你滿幾天才能開戶
+# staff_may_trade = true      # owner 和管理員也能交易;false = 看得到市場內部數字的人不能開戶和下單
+# account_min_tier = "認識"   # 羈絆至少到哪一級
+# order_min = 10              # 一筆買進最少(含手續費)
+# order_max = 0               # 一筆買進最多(0 = 不限)
+# orders_per_day = 20         # 一天最多幾筆委託(買賣合計)
+# buy_per_day = 0             # 一天最多買多少魚幣(0 = 不限)
+# transfer_lock_hours = 24    # 別人轉給你的魚幣要過多久才能投入
+# min_hold_minutes = 10       # 買進後多久才能賣
+# fee = 0.01                  # 每筆手續費,無條件進位,燒掉
+# fee_min = 1
+# # ---- 持有上限(照成本算,2 倍照全部部位算;隨羈絆和認識的時間放寬)
+# limit_total = 0             # 0 = 不限
+# limit_bond_step = 0.25
+# limit_age_step = 0.1
+# limit_age_days = 30
+# limit_max_mult = 2
+# # ---- 交易所的錢
+# payout_cap_daily = 0       # 每天最多淨發出(0 = 不限);設了之後,到了當天停止買進,賣出照常全額付
+# mint_warn_share = 0.05      # 7 天淨發出超過流通魚幣的這個比例時,owner 頁提醒(只提醒,不停止)
+# map_min_holders = 2         # 伺服器持股圖:少於這麼多人持有的股票併入「其他」,看不出是誰持有
+# map_max_share = 0.35        # 熱力圖:一格最多占整張圖的這個比例(台積電一檔就占熱門台股的三分之二);1 = 不限
+# # ---- 2 倍(交叉保證金:賠超過保證金時先扣錢包、再賣其他持股;最壞賠光,不會欠錢,破產有冷靜期)
+# leverage = true             # false = 不能開新的 2 倍部位
+# leverage_line = 0.2         # 保證金剩這麼多就依規則自動賣出
+# leverage_warn_half = 0.5
+# leverage_warn_near = 0.35
+# leverage_carry_daily = 0
+# leverage_min_coin_price = 50   # 一股至少幾魚幣、有前一天收盤價的股票才能 2 倍
+# leverage_min_days = 30      # 2 倍:她認識你滿幾天
+# leverage_min_tier = "朋友"  # 2 倍:羈絆至少到哪一級
+# leverage_margin_cap = 0     # 一個人所有 2 倍部位的保證金合計最多(0 = 不限)
+# bankrupt_cooling_days = 7   # 破產後幾天不能買進
+# # 五檔獨家股票,照什麼推動它分(角色固定在程式裡,代號、名字、起始價和說明是這個 profile 的;不寫 = 下面這些):
+# # feeding = 餵食、songs = 唱完的歌、silence = 沒說話的小時、game = 遊戲目標和死掉、model = 模型出錯
+# # anchor 是起始價和長期會回到的價位(魚幣);what_moves 不寫 = 照名字自動寫一句「大家多餵她,…就容易漲」
+# # 代號是資料庫裡持股和價格紀錄的鍵:已經有人買過或有價格紀錄時改代號,交易所模組不會啟動、模組頁寫原因(改回來,或用新的 profile)
+# # [modules.exchange.local_companies]
+# # feeding = { code = "RICE", name = "白飯食品", anchor = 100 }
+# # songs = { code = "WHLE", name = "鯨落唱片", anchor = 108 }
+# # silence = { code = "NAPS", name = "打盹床業", anchor = 88 }
+# # game = { code = "CUBE", name = "方塊礦業", anchor = 116 }
+# # model = { code = "DPSK", name = "DipSick AI", anchor = 94 }
+# # 舊寫法照樣能讀:[modules.exchange.local_anchors] RICE = 100 …(用第一個角色的代號當鍵,等於 feeding 的 anchor)
+# # [modules.exchange.local_signals]   # 她的真事怎麼推動五檔獨家股票(docs/design/exchange.md §9)
+# # baseline_days = 14        # 和前幾天比:那些天的中位數和離散
+# # min_history_days = 7      # 紀錄不到這麼多天就不推(新的實例)
+# # spread = 3                # 滿格要離中位數幾個離散
+# # relative = 0.5            # 也至少要離中位數的這個比例
+# # slow_call_seconds = 30    # model:模型回得比這慢就算太慢
+# # feeding = { floor = 10, up = 1, down = 1 }   # 滿格至少要比平常多(少)幾次;up / down 是最多推到滿格的幾成
+# # songs = { floor = 3, up = 1, down = 1 }
+# # silence = { floor = 3, up = 1, down = 1 }
+# # game = { floor = 3, up = 1, down = 1 }
+# # model = { floor = 10, down = 1 }   # 只會跌(up 一律 0),跌幅壓在一次來回手續費以下
+# # (舊寫法 RICE = {…}、DPSK = {…} 也照樣能讀,等於 feeding、model)
+# # [modules.exchange.yahoo]
+# # host = "query1.finance.yahoo.com"
+# # daily_budget = 3000       # 一天最多幾次請求,用完就停到隔天、報價標為停滯
+# # timeout_ms = 8000
+# # max_backoff_seconds = 1800
+# # [modules.exchange.twse]   # quotes_tw_provider = "twse" 時的證交所報價
+# # host = "mis.twse.com.tw"
+# # daily_budget = 3000       # 一天(台北)最多幾次請求,用完就改問 Yahoo
+# # timeout_ms = 5000
+# # max_backoff_seconds = 900 # 429、5xx、沒有回應時退避(15 秒起加倍)
+# # max_symbols = 50          # 一次請求最多幾檔
+
+# 唱 K 第一步(docs/design/karaoke.md「做了什麼(第一步)」):會員頁一個人唱。貼連結或打歌名,
+# 唱歌 worker 做伴唱軌和參考旋律;在自己的瀏覽器唱、算音高,唱完 Core 用同一份評分重算,
+# 她在講評頻道講一句。麥克風的聲音不離開瀏覽器,只送每秒 50 格的音高軌(留 7 天)。沒有魚幣。
+# [modules.karaoke]
+# enabled = true
+# utc_offset_minutes = 480    # 「今天」從哪個時區算(每人每天的上限)
+# open = true                 # false = 會員不能點歌、唱、開房間;唱完的結果照常;面板管理員關著時也能用,可以先試
+# site_url = ""               # 會員頁的網址(例如 "https://miyoria.example.com");/me play karaoke、開房通知的連結和直播上的 QR 碼用它,沒填就只說在會員頁
+# max_song_secs = 480         # 一首最長幾秒,超過的準備失敗
+# daily_songs = 10            # 每人每天能準備幾首新歌;已經準備好的歌不算(0 = 只能唱準備好的)
+# tolerance_cents = 50        # 離原唱幾 cents 內算唱對,兩倍遠就不算
+# voice_score = true          # 唱的時候錄下麥克風,唱完送唱歌 worker 讀音高算正式分數,算完兩邊都刪;false = 只有預估分數
+# comment = true              # 唱完讓她講評(她平常的一個回合,沒有另外的模型呼叫)
+# comment_channel = ""        # 講評的文字頻道,"discord:<伺服器 id>:<頻道 id>";留空 = 她只知道、不開口
+# voice_wait_secs = 90        # 講評最多等正式分數幾秒,等不到就用預估分數
+# video = true                # 背景影片:準備歌時留一份來源的畫面(最高 720p、沒有聲音),唱的時候放在歌詞後面
+# video_keep_hours = 24       # 影片在 Core 上最後一次唱過後留幾小時,再唱時從 worker 再拿
+# cache_dir = "data/karaoke"  # 伴唱軌和參考旋律在 Core 上放哪(相對 miyoria.toml);一天沒人唱就刪
+# 多人房間:她在語音頻道時,會員在會員頁開房間、用房號加入,大家同時唱同一首(房間開在講評頻道的伺服器)
+# rooms = true                # false = 不能開房間
+# room_price = 20             # 開房費(燒掉);一首都沒唱完就關掉的房間全退;0 = 免費
+# room_prize = 15             # 每一首的第一名:至少兩個人唱完、要是正式分數、沒有被標記;同分都給
+# room_finish = 3             # 唱完一首的人各拿這麼多
+# room_finish_share = 0.5     # 原唱有聲的地方唱到這麼多(而且音比亂唱準)才算唱完
+# room_prizes_per_day = 2     # 每人每天第一名獎勵最多幾次
+# room_finishes_per_day = 5   # 每人每天唱完獎勵最多幾次
+# room_rounds = 4             # 一間房最多唱幾首(開房費只收一次)
+# room_singers = 8            # 一間房最多幾個人唱(旁觀不算)
+# room_max = 2                # 同時最多幾間房
+# room_queue_per_person = 2   # 房間的點歌佇列裡一個人同時最多幾首在等(準備中的也算)
+# room_queue_max = 12         # 一間房的佇列最多幾首(準備失敗的不算)
+# room_idle_mins = 10         # 房間閒置多久(沒有開始唱)就關掉
+# room_countdown_secs = 6     # 按開始後倒數幾秒,大家的伴奏同時開始
+# room_stream = true          # 唱的時候把麥克風即時送到唱歌 worker 算正式分數(不存);false = 唱的時候只有預估,唱完送錄音
+# room_announce = true        # 開房時在講評頻道貼一則系統通知(房號和「加入」的連結,不標記任何人),關房時改成已結束
+# 直播(第五步):她的直播(Go Live,OBS 的唱 K 場景)播伴奏和最多一個人的歌聲;她自己的語音頻道不播。
+# overlay 的瀏覽器來源要「讓 OBS 控制音訊」(stage obs-setup 會設好),聲音才進得了直播
+# stream_scene = true         # 直播畫面顯示唱 K 房間:等人時角落一塊,唱的時候歌詞、背景影片、即時排名、結果
+# stream_qr = true            # 直播上在房號旁邊顯示加入房間的 QR 碼(要填 site_url;看得到直播的人都能掃,誰能進照房間的規則)
+# stream_qr_while_singing = false  # 唱的時候也在角落留一個小的 QR 碼
+# stream_backing = true       # 直播的唱 K 場景播伴奏
+# stream_delay_ms = 2000      # 直播比唱的人晚多少(一間房固定一個);播出的歌聲太晚到的那一段是靜音,不會越拖越晚
+# relay_solo = true           # 一個人唱時可以播出他的歌聲(他自己勾「讓大家聽到我」,每一首預設不勾;聲音不存)
+# relay_lead = false          # 新房間預設「播出第一名的歌聲」(兩個人以上唱時一次播一個人;開房的人可以改,每人可以選不要播)
+# relay_hold_secs = 4         # 新的第一名要連續領先幾秒才換成他的聲音(盡量換在兩句中間)
+# relay_fade_ms = 200         # 換人時淡入淡出多久
+# stream_backing_gain = 0.8   # 直播伴奏的音量(0–1)
+# stream_voice_gain = 1.5     # 直播歌聲的音量(0–4)
+# stream_duck_gain = 0.35     # 她在語音頻道講話時,直播的唱 K 聲音降到這個比例
+# 歌詞:唱歌 worker 把查到的歌詞一行一行和主唱聽到的比對,對上的逐字對齊、照字切音符;
+# 查不到或對不上就用聽寫的。下面只影響之後準備的歌
+# aligner = "mms"             # mms(預設;難的歌準很多,權重 CC-BY-NC-4.0,只能非商業使用)| w2v(Apache-2.0;有收入的用途請用這個)
+# lyrics_matched = 0.75       # 一行和聽到的至少這麼像才算對上
+# lyrics_uncertain = 0.5      # 比這個低算對不上
+# lyrics_keep_share = 0.5     # 對上的行至少這麼多,整首就用查到的歌詞
+# lyrics_wrong_share = 0.2    # 對上的行比這個少 = 查錯歌,改用聽寫
+
+# 遊戲內聊天變成獨立的對話(每個世界 / 伺服器一段歷史)。玩家在 Discord 用 /me link 拿代碼,
+# 在遊戲聊天室打 `!link <代碼>` 就跟 Discord 帳號連在一起;沒連的玩家是陌生人。
+# 她在遊戲裡的回話很短、不會下指令;直播中又在語音裡時也用語音說(她可以用 game_chat_reply 自己改)
+[modules."game.chat"]
+# games = ["minecraft"]
+# world = "local"            # 這個世界 / 伺服器的名字(對話情境的 scope;頻道模式可用 "minecraft:local")
+# username = ""              # 她在遊戲裡的名字(別人提到時才知道是在叫她)
+# max_chars = 120            # 她在遊戲聊天室一句最多幾個字
+# reply = "auto"             # auto | chat | voice | both
+
+[modules.voice]
+consent = "opt-out"        # opt-out:預設收音,可用 /voice consent off 退出;opt-in:同意後才收
+barge_in = "selective"     # 有人插話時:selective(只有這回合要回的人 / 叫她名字 / 對她說實質內容才停,其他人只降音量)| stop(任何人都停)| ignore
+# barge_in_ms = 600            # 這回合要回的人講多久先暫停她(stop 模式:任何人講多久就停)
+# barge_in_duck_ms = 250       # 其他人講多久她就降音量
+# barge_in_duck_gain = 0.3     # 降音量時剩多少(0~1)
+# barge_in_focus_stop_ms = 3000 # 要回的人一直講到這麼久,不等語音辨識就停
+# names = ["她的名字", "暱稱"]    # 叫到這些字就停(profile 的名字模組會自己補上)
+# music_gate = true            # 唱歌時只有叫她名字的句子算有人講話
+# self_echo_tail_ms = 5000     # 她講完後這段時間內,轉錄跟她說的話重複就當回音
+# 判斷講完(workers/turn,見 workers/README.md 第 10 節)。模型沒裝、worker 沒開或答得太慢,都會退回舊行為
+# turn_engine = "silence"      # silence:安靜 end_silence_ms 或 voice node 關掉串流就算講完 | smart-turn:Smart Turn 判斷
+# # turn_url 只在 turn 服務沒有 hostd 管時才寫;hostd 管的不用寫
+# turn_url = "http://127.0.0.1:8006"   # end-of-turn worker(Smart Turn 和 Silero 都在這裡)
+# turn_stop_ms = 200           # 安靜多久問一次模型
+# turn_timeout_ms = 150        # 模型這麼久沒答就當沒問,回到 end_silence_ms
+# turn_max_silence_ms = 1500   # 模型說還沒講完時,最多等這麼久
+# turn_confirm_ms = 400        # 回合結束後對方再安靜這麼久,她的回覆才開始合成(LLM 先跑)
+# turn_gate_max_ms = 2000      # 她的回覆為了這件事最多等這麼久
+# turn_early_asr = false       # 模型說還沒講完時先辨識一次,真的講完就省下 ASR 時間;每次停頓多跑一次 ASR
+# vad_engine = "energy"        # energy | silero(Silero 在 turn_url 的 worker 跑,連不上就退回 energy)
+# vad_silero_threshold = 0.5   # Silero 判定是語音的機率
+# ASR 常聽錯的字改回來,在任何人讀到轉錄之前做(聽不到名字就等於沒叫她)。拉丁字母整個字比對、不分大小寫
+# asr_aliases = { "咪o" = "Miyo", "meo" = "Miyo", "deep sick" = "DeepSeek" }
+# asr_while_paused = false     # 做歌佔顯示卡時仍送 ASR(asr_chain 裡有 CPU 的 worker 才有用)
+# clip_dir = "data/voice-clips" # 留下同意收音者的片段,用來比較 ASR、校準 Smart Turn。成員的聲音會落地,預設關閉
+# tts_prefetch = 2             # 她說話時先合成後面幾句(0 = 關閉)
+# tts_prefetch_ttl_ms = 30000  # 預先合成的句子沒人用,過這麼久就丟掉
+# speech_hold_max_ms = 90000   # 唱歌 / 顯示卡借出時她的話最多等這麼久,再久就丟掉
+# 說話用另一種語言(例如日文聲線比較好聽):每句先用 LLM(fast)翻譯再送 TTS,字幕和聊天紀錄維持原文
+# tts_translate = "Japanese"
+# Discord Go Live:voice node 的 ffmpeg 在這裡等 OBS 推流(對應 OBS 的伺服器 + 金鑰)。
+# 預設 = OBS 伺服器 rtmp://127.0.0.1:1935/live、金鑰 miyoria。`/voice golive start` 會用它
+# (她還不在語音裡時,會先進你所在的語音頻道)。
+# golive_source = "rtmp://127.0.0.1:1935/live/miyoria"
+# golive_listen = true         # true = voice node 的 ffmpeg 自己當 RTMP 伺服器等 OBS 推流;
+#                              # false = OBS 推到 MediaMTX(workers/mediamtx/,佔 :1935),ffmpeg 去那裡拉。
+#                              # 網站要看直播畫面就用 false,搭配 [modules.activity] obs_hub = true;
+#                              # OBS 的設定不用改,一樣是 rtmp://127.0.0.1:1935/live、金鑰 miyoria
+# 墊話(v4 §7.5):有人叫她、而她還沒有任何聲音時,先放一小段預先合成好的她自己的聲音(「嗯?」「欸~」),
+# 不然對方會聽到一段沉默。只在她被叫到時;她決定不說話的回合、或第一句寫好時就不放。
+# 不是一句台詞(不進她的對話紀錄,也不算 Floor 的額度);連兩次不會是同一個。預設開著,不要就 filler = false
+# filler = true
+# filler_after_ms = 600          # 回合開始後多久還沒有她的聲音就放墊話(模型寫出第一句通常比這更久)
+# filler_lines = { Chinese = ["嗯?", "欸~", "蛤?", "等等"], Japanese = ["ん?", "え~", "え?", "えっと"] }
+#                                # 依她被聽到的語言(tts_translate,沒設就 tts_language)挑;沒列的語言就沒有墊話。
+#                                # 要短而中性,放在任何回答前面都不奇怪;每個聲線只合成一次,存在 filler_dir
+# filler_dir = "data/voice/fillers"   # 合成好的墊話放哪(一個聲線一個資料夾)
+# filler_max_ms = 1500           # 合成出來比這更長的墊話不用
+
+# 她的行動閘門:進語音、開台、換場景、玩遊戲、私訊……不論誰要求都要過這裡(紀錄在稽核紀錄)。
+# 緊急暫停用 /admin autonomy pause;每個人可以用 /me privacy 拒絕私訊或被主動找
+[modules.actions]
+# paused = false                 # 一開機就是緊急停止狀態(之後以 /admin autonomy resume 的選擇為準)
+# emergency_step_ms = 20000      # 緊急停止每一步最多等多久,逾時就算失敗、接著做下一步
+# forbidden = ["message.dm"]     # 完全禁止的能力(也可以 "stream.*")
+# dm_strangers = false           # 不私訊不熟的人(熟悉度低於 stranger_familiarity)
+# [modules.actions.medium]       # 中風險動作的次數上限(她自己決定或聊天請求時;指令不受限)
+# per_day = 30
+# per_person_per_day = 8
+# cooldown_ms = 20000
+# inline_wait_ms = 8000          # 高風險工具(跑程式等)等審核多久;來不及就晚點在後續回合告訴她結果
+# [modules.actions.limits."code.run"]
+# per_day = 50
+# cooldown_ms = 5000
+# [modules.actions.share]        # 她把自己做的檔案當附件傳給開口要的人(設了 [modules.api.files] origin 就另外附連結)
+# max_bytes = 10485760           # 一個檔案最多幾 bytes(平台自己的上限另外算,取小的)
+# per_day = 60                   # 每 24 小時最多傳幾個(所有人加起來)
+# per_person_per_day = 10        # 每 24 小時最多傳給同一個人幾個
+
+[modules.directive]
+# 主人規則(docs/design/v3-architecture.md §9)。規則本身存在資料庫裡,用對話、/miyo、/admin i 或面板管理,
+# 這裡只設定主人以外的人能做到什麼程度。關掉這個模組只會少了工具和指令,已經有的規則照樣生效。
+# viewer_ttl_mins = 10       # 觀眾的要求只是偏好,維持幾分鐘(不管對方怎麼說)
+# moderator_max_mins = 1440  # 管理員的規則最長幾分鐘(超過會縮短;管理員一定要給時效)
+# max_viewer_wishes = 5      # 同時最多留幾個觀眾的要求(一人一個)
+# refresh_secs = 30          # 多久重讀一次規則;讀不到時她的動作全部擋下(停止類動作除外)
+# history_days = 30          # 結束的規則在面板留幾天
+
+# 她在做什麼(ActivityManager):語音、直播、活動(遊戲 / 唱歌)只有這一個主人。她的工具、指令、
+# 面板、導演都經過它:重複的要求不會重做、同一件事一次只做一個;工具立刻回「開始了,task …」,
+# 做好或失敗(含原因,例如「開台失敗:OBS 沒開」)再通知她。開台 = Go Live + OBS 兩步;離開語音前先關台,
+# 等她把話講完才離開。
+[modules.activity]
+# golive_timeout_ms = 60000      # Go Live 多久沒開始就算失敗
+# obs = true                     # 連著直播機時 OBS 是開台的第二步(過閘門);false = 只有 Go Live
+# obs_start_delay_ms = 3000      # Go Live 開了之後等多久才按 OBS 開始直播(obs_hub:OBS 開播後等多久才開 Go Live)
+# obs_attempts = 3
+# obs_hub = false                # true = OBS 推到 MediaMTX(workers/mediamtx/),網站自己看得到,跟 Go Live 脫鉤:
+#                                # 開台先開 OBS 再開 Go Live;關台、離開語音、Go Live 斷掉都不會停 OBS。
+#                                # 要搭配 [modules.voice] golive_listen = false;OBS 一樣推 rtmp://127.0.0.1:1935/live、金鑰 miyoria
+# voice_timeout_ms = 20000       # 進 / 離開語音等確認的時間
+# speech_wait_ms = 30000         # 離開語音前最多等她把那一輪話講完多久
+# game_timeout_ms = 300000       # 遊戲最多開多久(含啟動器與載入世界)
+# failed_hold_ms = 120000        # 失敗的活動(例如遊戲斷線)留著給大家看多久
+# restore_grace_ms = 180000      # 重啟後上次沒關的遊戲最多等多久連回來,等不到就當已經關了
+# restore_poll_ms = 5000         # 重啟後多久看一次那個遊戲回來了沒
+# notice_ttl_ms = 600000         # 通知多久後就不用再告訴她
+
+[modules.agent]
+# 文字頻道的聊天等級:off(關閉)| mention-only(只回提及)| quiet(安靜)| normal(一般)| lively(活躍)
+# (always = 每則都回,測試用)。等級是上限:她在等級之內自己決定要多話,
+# 有人請她安靜點她也會自己調。沒設定的頻道用 profile 的 default_channel_mode(預設 quiet)。
+# 也可以在 Discord 用 /channel mode 或面板「內心 → 世界」即時切換
+# default_mode = "quiet"
+# channels = { "<channel id>" = "lively", "discord:<guild id>" = "mention-only" }
+# 每個頻道、每個伺服器自己的等級、主動程度和說話的語言(/channel mode 範圍:這個頻道|整個伺服器、面板):
+# 存在資料庫的每個地方的設定裡,檔案裡通常不寫;寫了就跟 default_mode / default_activeness 一樣是全部的預設。
+# 後來加入的伺服器沒設的時候是只回提及、主動程度低
+# mode = "quiet"
+# activeness_level = "medium"
+# language = "日本語"
+# 她寫 @名字 會變成真的 tag
+# mention_users = true
+# 回合:最後一則訊息後等多久才開始回(打字中會延長);回覆會引用叫她的那則訊息
+# debounce_ms = 800
+# reply_reference = true
+# 每個對話(一個頻道、討論串、私訊或語音頻道)最近一小時內最多花多少在模型上,照 [llm.pricing] 算;
+# 那一小時用過沒有價格的模型時改用 token 算。到了她在那裡先不回,有人叫她時說一次大概幾分鐘後回來
+# (同一段時間只說一次),記錄裡有一行警告。0 = 不設這個上限(每天的 [llm.budget] 照樣算)。
+# 也可以在面板替某個伺服器或頻道另外設;私訊用這裡的值
+# session_usd_per_hour = 1
+# session_tokens_per_hour = 3000000
+
+# 語音聊天。也可以用 /voice mode 即時切換。要不要插話 = 她的多話程度(心智迴圈或「活躍點」)
+# × 佔比上限;有人還在講話時她不插嘴。她自己多久開一次口由 [modules.arbiter] 決定
+# 主線 prompt 的字數預算(v4 §4.1)。prompt 沒有 token 上限,各部分各有字數預算。
+# 對話紀錄放在快取前綴裡,所以放得長也不貴。下面都是預設值
+# [modules.agent.mainline]
+# self_chars = 1600              # 「現在」裡她自己的狀態
+# data_chars = 12000             # 參考資料(世界、遊戲、筆記)合計
+# memory_lines = 20              # 每回合帶進來的記憶最多幾則(0 = 照 [modules.memory] 的 recall_limit)
+# examples_chars = 4000          # 範例對話(0 = 不放);每個 session 輪替一批,同一個 session 內不變,前綴才不會變
+# memory_recent_lines = 4        # 檢索除了她回的那句,也看它前面幾句(「好啊」本身什麼都找不到)
+# people_chars = 3600            # 在場的人的檔案(放在對話紀錄前面)
+# life_chars = 800               # 「今天的她」(她做過的事),放在對話紀錄前面
+# skills_chars = 800             # 她的技能索引(一個名字加一行)
+# notebook_chars = 600           # 筆記本索引
+# emoji_chars = 1200             # Discord 伺服器自訂表情和意思的清單(表變了才會變,放在對話紀錄前面)
+# just_now_chars = 1200          # 「剛才」她在每個地方做了什麼(放在對話紀錄後面)
+# elsewhere_chars = 900          # 她在的其他地方在聊什麼
+# context_entries = 4            # 資料區塊裡不可信的工作脈絡最多幾則
+# commitment_due_secs = 120      # 她說要做但沒說期限時,多久算逾期
+# commitment_sweep_ms = 5000     # 多久找一次逾期的承諾
+# ms_per_char = 180              # 講一個字要多久(被打斷時推算她講到哪)
+
+# 工作線(v4 §4.3):現在只給遊戲導演一步一步做決定用(它的紀錄、每天的 token 額度、它記住的技能);
+# 她自己好幾步的事交給小幫手(下面的 delegate)。下面都是預設值
+# [modules.agent.work]
+# enabled = true
+# daily_tokens = 600000          # 所有任務一天(UTC)加起來最多花多少 token,遊戲導演的步驟也算在內;用完就不再啟動
+# result_chars = 1200            # 她的結論,主線被告知的字數
+# did_lines = 6                  # 「做了什麼」告訴主線幾行
+# keep_ended = 20                # 結束的任務留幾個給 work_list 和面板
+
+# 小幫手:她用 delegate 交代出去的工作(research 上網查、curator 整理筆記本)。
+# 語音頻道裡也可以交代,結果回到她還在的那個語音頻道。
+# 小幫手不會講話、不花錢、不寫工作區;結果回到交代的那個地方叫她。額度都在這裡,和她自己的額度分開記
+# [modules.agent.delegate]
+# enabled = true
+# max_running = 2                # 同時跑幾個(1 到 4);多的排隊
+# max_queued = 4                 # 最多排幾個,更多的 delegate 被拒絕(她會知道)
+# daily_usd = 3                  # 所有小幫手一天(以一天的開始算)加起來最多花多少美元,依模型價目表;用完就不再開
+# daily_tokens = 9000000         # 模型沒有價目時改用 token 算的一天上限
+# reflect_daily_usd = 0.5        # 每晚的反思一天最多花多少美元,另外記
+# reflect_daily_tokens = 1500000 # 反思在模型沒有價目時的 token 上限
+# result_chars = 1500            # 結果叫醒她時放進去的字數;更長的用 delegate_read 讀
+# read_chars = 8000              # delegate_read 一次給她的字數
+# keep_ended = 20                # 結束的工作留幾個給 delegate_list 和面板
+
+# 輸出檢查:新跑者留下的六個對她輸出的檢查(編號見 docs/design/v5-brain.md Q8)。預設都開;
+# 這些開關是除錯用的,關掉一個只是拿掉那一個檢查,外層的牆(主人規則、行動閘門、送達帳本、輸出審查、
+# Floor 的限額)不受影響
+# [modules.agent.corrections]
+# leak_screen = true             # #9 回覆審查(文字):整段是她的推理內容就丟掉,不送出
+# leak_screen_spoken = true      # #10 語音逐句:是她推理內容的句子不念
+# thinking_block = true          # #11 <emo:thinking>…</emo:thinking> 之間的字是推理,不給人看
+# fallback_line = true           # #15 模型失敗或什麼都沒給、而有人在等時,送固定的一句短話
+# tag_strip = true               # #18 拿掉寫成標籤的工具、DeepSeek 的工具標記和 HTML 標籤
+# self_talk = true               # #19 她寫給自己的盤算(「他在問我…,直接回他就好。」)只拿掉那一行,文字不送、語音不念
+
+# 節奏:文字頻道裡她怎麼分幾則送、表情反應的上限(v4 §7.2、§7.3)。這一節在 [modules.agent.rhythm]
+# (不是 [modules.agent.mainline]),下面都是預設值
+# [modules.agent.rhythm]
+# reactions_per_hour = 20        # 每個頻道每小時最多幾個表情反應(不是台詞,不算 Floor 額度);0 = 不反應
+# reaction_gap_ms = 3000         # 同一個頻道兩次反應至少隔多久
+# pace_ms_per_char = 40          # 一次回覆分成幾則短訊息時,依下一則的長度隔開並顯示輸入中:每字這麼久
+# pace_min_ms = 300              # 但最短
+# pace_max_ms = 1800             # 最長
+# 對她說的話如果只是單純的道謝或道別(「謝謝」「掰掰」「晚安」「thanks」「おやすみ」),有時她只按一個表情、不叫模型。
+# 有問題、附件、提到別人、那裡有派對遊戲或她開的工作在等、她上一句在問對方、那裡正在回話時都不會。這個反應也算 reactions_per_hour
+# courtesy_react = true          # 開關
+# courtesy_chance = 0.35         # 這種話有多少機率只按表情(其餘照常回)
+# courtesy_per_hour = 3          # 每個頻道每小時最多幾次
+
+# 她自己起頭的事:她設的時間到了、外面發生的事、該追問的事、答應過
+# 還沒做的事、這裡安靜了、想念某人、早上醒來,都先過程式的關卡,過了才叫醒她,說不說由她決定。
+# 每天幾次、每個地方幾次、每個人幾次、間隔、沒人回時拉長的間隔、安靜時段都照 [modules.arbiter];
+# 早上幾點照 [modules.mind] 的 daily_hour,「在意的人」照 [modules.heart];面板的暫停也停這些。
+# 下面是新的設定,都是預設值
+# [modules.agent.initiative]
+# home = "<channel id>"          # 不屬於哪個地方的事(早上、沒指定地方的提醒)在哪裡叫她;不設 = 等她下次在任何地方醒來時看
+# glances_per_day = 120          # 所有頻道加起來一天最多「看一眼」幾次
+# quiet_mins = 10                # 一個地方多久沒人說話算安靜了
+# longing_min = 0.5              # 想念到多少(0 到 1)才會想私訊對方
+# mood_weight = 0.5              # 她的心情對自己起頭影響多大:想主動時安靜不用等那麼久、想念的門檻低一點(0 = 不影響)
+# row_window_mins = 60           # 「不連續兩次同一種事」往回看多久
+# tick_secs = 30                 # 多久看一次到期的時間、追問和承諾
+# inbox_items = 12               # 一個回合最多給她看幾件收件匣的事
+# schedules_max = 20             # 她設的時間(含 remind_me)最多幾個
+# schedules_per_person = 3       # 一個人最多請她設幾個提醒
+# schedule_max_days = 30         # 最遠設到幾天後
+# [modules.agent.initiative.cooldown_mins]
+# world = 30                     # 兩次「外面發生的事」至少隔多久
+# quiet = 60                     # 兩次「這裡安靜了」至少隔多久
+# longing = 240                  # 兩次「想念某人」至少隔多久
+[modules.agent.voice]
+default_mode = "normal"    # off | mention-only | normal | always(語音沒有安靜 / 活躍之分)
+# mode = "normal"          # 每個語音頻道、每個伺服器自己的語音模式(/voice mode、面板;存在資料庫,檔案裡通常不寫)
+# activeness_level = "medium"  # 同上,語音的主動程度
+debounce_ms = 700          # 對方講完後等多久(看他是不是還要繼續講)
+text_chat = true           # 她在語音頻道裡時,那個頻道文字區打的字她也用說的回
+text_aside = true          # 用說的回時,網址和程式碼改貼到語音頻道的文字區
+# text_echo = false        # true = 她用說的回時,把說的話整段也貼到語音頻道的文字區(寫完就貼,她可能還在講)
+# text_echo_text = "written"   # 貼哪一種:written = 她寫的原文;spoken = 實際念出來的(tts_translate 讓她講別的語言時是譯文;等最後一句開始念才貼)
+keep_in_voice = true       # 她在語音時,自己的事(做事的結果、遊戲實況)用說的,不發到文字頻道;回別人的話還是留在原處
+direct_debounce_ms = 400   # 有人叫她(名字、她剛講完就問她)時只等這麼久
+# turn_debounce_ms = 100   # Smart Turn 判定講完時只等這麼久(turn_engine = "smart-turn" 才會用到)
+# debounce_from_speech_end = true  # 上面的等待從對方最後一個聲音算起,不是從轉錄送到才算(語音節點的靜音偵測和 ASR 本來就等了約一秒);false = 從轉錄算
+# speculate = true         # 有人叫她、等待還沒結束時,回合先開始跑(記憶、prompt、模型),等待結束前不說也不做任何事;對方接著講就丟掉重來(次數在 agent_voice_speculation_total)
+# speculate_max_per_min = 4  # 每個語音頻道每分鐘最多丟掉幾次提早開始,超過就照舊等
+# warm_context = true      # 語音回合 prompt 中不依賴她回的那句的部分,每個頻道先備好、不用等,背景再更新給下一回合
+# warm_contributors = ["notebook", "just_now", "elsewhere"]   # 先備好的段落:最多是上一回合的內容
+# warm_max_age_ms = 120000 # 備好的內容超過這麼久就不用
+# live_context_ms = 400    # 依她回的那句才有的部分(記憶檢索等)在語音最多等這麼久,逾時就不放(文字等 contributor_timeout_ms)
+# 下面是她回話的細節,都是預設值
+# max_debounce_ms = 2500   # 一個回合的等待上限(有人還在講會延長,但不超過)
+# question_window_ms = 8000  # 她講完後這麼久內有人問問題,算是在問她
+# speak_ttl_ms = 30000     # 句子這麼久還沒開始播就丟掉
+
+# 她沒親眼看到的上下文:重開後(或很久沒人講話後)補抓頻道之前的訊息、回覆鏈。
+# 需要 Bot 的「讀取訊息歷史」權限;抓不到就用自己的訊息紀錄
+[modules.agent.history]
+backfill = 20              # 冷啟動補抓幾則(0 = 不補抓)
+reply_chain = 3            # 回覆的訊息不在紀錄裡時,最多往上抓幾則
+timeout_ms = 3000          # 最多等多久,逾時就不等了直接回
+
+# 看圖(聊天模型要收圖片,見 [llm.image_input]):她回的訊息、它回覆的訊息、
+# 同一個人兩分鐘內傳的圖
+[modules.agent.vision]
+enabled = true
+max_images = 3             # 每回合最多幾張
+max_image_bytes = 5000000  # 單張上限
+# detail = "auto"          # auto | low | high(low 最便宜)
+# 連結預覽的圖也算那則訊息的圖,只拿 Discord 自己代理的那份,不會連到第三方網站
+# allowed_hosts = ["cdn.discordapp.com", "media.discordapp.net", "images-ext-1.discordapp.net", "images-ext-2.discordapp.net"]
+
+# 別人傳來的檔案(文字、程式碼、markdown、csv、json、pdf、docx、xlsx、pptx):在沙箱裡開、
+# 當資料給她看,見 docs/design/file-attachments.md。要有 tools.file(member 以上預設有)。
+# 沙箱沒開或 Docker 不能用時,她只會說現在沒辦法安全地打開檔案,不會在沙箱外處理。
+[modules.agent.files]
+enabled = true
+max_files = 2              # 每回合最多讀幾個檔案
+
+# prompt 編譯器:每一段參考資料有自己的字數上限(超過就留整行、標「還有幾行略過」),
+# 其他模組附上的段落加起來不超過 [modules.agent.mainline] data_chars(超過時公平分配,不是後面的直接被砍)
+[modules.agent.prompt]
+default_budget = 600       # 沒列在 budgets 的段落
+self_chars = 2000          # 她寫給自己的那份文件放進固定區塊的字數上限(不受 budgets 限制)
+# mood_style = true        # 依她的心情,在 style_note 加一句回長回短、要不要用表情回應(程式不硬切)
+save_every = 1            # 每幾個回合存一份壓縮過的實際 prompt(面板看;0 = 不存)
+# budgets = { conversation = 900, memory = 1000, knowledge = 700, lessons = 500, world = 500, game = 700, sing = 400, people = 800, examples = 2500 }
+
+# 她的感知:誰在線、在玩什麼、誰在哪個語音頻道、各頻道熱不熱鬧。
+# 每個人都能用 /me privacy presence:off 不讓她讀自己的狀態
+[modules.world]
+# guilds = []                    # 只看這些伺服器;空的 = bot 所在的每個伺服器(各伺服器的資料只在該伺服器用)
+# game_interests = ["Minecraft"] # 除了角色的 interests 之外,她有興趣的遊戲
+cooldown_secs = 900              # 同一件事(同一個人上線…)多久內不再提醒她
+max_salient_per_minute = 6
+# voice_activity_window_secs = 300 # 語音裡的對話(語音辨識的句子)算在多長的時間內
+# voice_lively_lines = 6         # 這段時間內這麼多句,或 voice_quiet_secs 內有人說話 = 正在聊天(不是冷場)
+# voice_quiet_secs = 40
+
+# 她的內在:慾望(想聊天、想玩、想被注意、想休息、好奇)、無聊、情緒、她自己定的方針與議程。
+# 對每個人的感覺在 [modules.heart]。數字只決定自然漂移的速度,怎麼做由她自己判斷
+[modules.self]
+boredom_per_hour = 0.15          # 沒事做時無聊上升的速度
+# [modules.self.rise_per_hour]   # 各慾望自己上升的速度
+# social = 0.08
+# play = 0.05
+# attention = 0.04
+# curiosity = 0.05
+# esteem = 0.04                  # 想被認可、想表現
+# hunger = 0.25                  # 想吃白飯(Token):吃飽到再想吃約 40 分鐘
+# longing = 0.12                 # 最在意的人不在時,想念他的速度(沒有在意的人就慢慢退)
+# [modules.self.emotions]        # 她的情緒(七情);各情緒來得多快、退得多快是 profile 的 [temperament]
+# notice = 0.2                   # 超過這個才算明顯:放進 prompt、決定她表現出來的樣子
+# prompt_max = 3                 # prompt 最多列幾種情緒
+# missing_after_hours = 20       # 在意的人多久沒出現,回來時她會注意到
+# jealousy_lines = 3             # 在乎的人在 jealousy_window_mins 內回覆別人幾次、都沒理她就吃醋
+# jealousy_window_mins = 15
+# budget_per_10min = 0.9         # 所有情緒加起來,任何 10 分鐘內最多被激起這麼多(避免一次爆滿;0 = 不限)
+# [modules.self.mood]            # 心情不單獨存,是從慾望、情緒和時段算出來的
+# night_dip = 0.4                # 深夜精力最多掉這麼多
+# emotion_weight = 1             # 情緒對心情的影響(0 = 只看基準值、時段與慾望)
+
+# 她對每個人的感覺(羈絆、信任、好感、心結…,存在 heart_person)。她說話時自己寫要往哪個方向變,
+# 一步多大、一天最多多少由這裡的規則決定;每天一次的衰減(久沒互動羈絆慢慢掉,只掉到已達成的分級)。
+# 第一次啟動時把舊的關係紀錄搬進來,只搬一次。這個模組不能關(誰是誰、她對人的感覺都在這裡)
+[modules.heart]
+# utc_offset_minutes = 480       # 她的「一天」照哪個時區算(每日上限和衰減)
+# bond_gain_caps = [[0, 12], [100, 8], [300, 6], [600, 4]] # 羈絆一天最多加多少,看目前的羈絆;由低到高排
+# step_share = 0.25              # 她提一次是當天上限的幾分之一
+# repeat_damping = 0.75          # 同一天同一個值第 n 次只算 0.75 的 n-1 次方(和 step_share 加起來是 1 才剛好收斂到上限)
+# negative_factor = 3            # 往壞的方向是往好的方向的幾倍(每一步和每日上限都是)
+# anchor_hold = 0.5              # 知心以上的分級沒有共同記憶(錨點)時,羈絆停在門檻前多少
+# familiarity_per_line = 0.15    # 每一句話長多少熟悉(乘上那句話的深度,越熟長得越慢)
+# default_trust = 10             # 剛認識的人的信任
+# owner_trust = 100              # 標了 owner 的人的信任
+# owner_bond_floor = 30          # 標了 owner 的人的羈絆最低是多少
+# decay_check_mins = 10          # 多久看一次誰今天還沒衰減(每人每天只跑一次)
+# auto_owner_tag = true          # 有主人權限的帳號自動標上 owner
+# [modules.heart.caps]           # 每個值一天往好的方向最多動多少(壞的方向是 negative_factor 倍)
+# trust = 2
+# warmth = 0.2                   # 好感
+# respect = 0.1                  # 敬意
+# ease = 0.06                    # 自在
+# grudge = 0.2                   # 心結(好的方向是變少)
+# rapport = 0.06                 # 默契
+# [modules.heart.decay]          # 每天一次的衰減,照她的當地日
+# bond_grace_days = 7            # 幾天沒互動之後羈絆才開始掉
+# bond_per_day = 1               # 之後每天掉多少(只掉到已達成分級的門檻,不會低於 0)
+# warmth_half_life_days = 3      # 好感幾天回落一半(往羈絆對應的平常值)
+# longing_away_days = 2          # 幾天沒看到開始想念
+# longing_rise = 0.15            # 想念每天往「在意」的值靠近多少比例
+# longing_fall = 0.5             # 見到之後想念每天少多少比例
+# grudge_fade_per_day = 0.01     # 心結每天淡多少……
+# grudge_time_floor = 0.1        # ……淡到這裡停,剩下的要靠道歉、禮物、一起玩
+# familiarity_grace_days = 14    # 幾天沒互動之後熟悉開始模糊
+# familiarity_blur_per_day = 0.2 # 之後每天少多少……
+# familiarity_floor = 5          # ……最低到這裡
+# max_catch_up_days = 60         # 很久沒跑時最多補幾天
+# min_change = 0.005             # 比這個小的變動不寫
+
+# 她的想法日誌、目標、生活日誌和舊的提醒。她說話時寫的 feel 和每晚的反思會記一行進想法日誌
+# (面板「內心 → 想法」);目標的觸發條件成立時,會變成她收件匣裡的一件事叫醒她,說不說由她決定
+[modules.mind]
+# journal_keep = 200             # 想法日誌保留幾則原文;再多 digest_batch 則就把最舊的整理成摘要
+# digest_batch = 50
+# digests_keep = 60              # 摘要保留幾則(在面板「內心 → 想法」)
+# goal_default_days = 3          # 沒寫期限的目標(舊議程、追問)多久後過期
+# goal_max_days = 14             # 目標最長留多久
+# goal_refire_mins = 30          # 目標的觸發條件一直成立時,隔多久再放進收件匣一次
+# daily_hour = 6                 # 她的一天從幾點開始(生活日誌、早上醒來)
+# 她自己的日子(v4 §8):做了什麼會記成日誌,提醒是她自己設給自己的計時器(remind_me)
+# life_keep_days = 7             # 生活日誌保留幾天
+# reminders_max = 20             # 同時等著的提醒最多幾個
+# reminders_per_person = 3       # 一個人最多請她設幾個
+# reminder_max_days = 30         # 提醒最遠能設幾天後
+# reminder_hold_mins = 120       # 到時間的提醒留在主線的看板上多久
+# utc_offset_minutes = 480       # 她的當地時間(她的一天、提醒的「HH:MM」都照這個)
+
+# ---- 反思與學習(自主層階段 G)-------------------------------------------------
+
+# 對話筆記:每個頻道 / 私訊 / 語音 / 遊戲聊天,每 fold_every_messages 句或停頓 fold_idle_secs
+# 秒,她就把還沒整理的對話併進自己的筆記(用途 summarizer,在背景跑,不影響語音延遲)。
+# prompt 放筆記 + 最近的原文,舊的對話被丟掉也不會忘記。
+# [modules.conversation]
+# fold_every_messages = 16
+# fold_idle_secs = 90
+# max_calls_per_hour = 40        # 所有頻道合計;預算 degraded 時減半、間隔加倍,exhausted 停止
+# max_calls_per_day = 400
+# min_interval_secs = 30         # 同一個頻道兩次整理至少隔多久
+# stale_thread_mins = 30         # 筆記裡這麼久沒人碰的事(懸而未決的問題、話題)不再放進 prompt
+# drop_thread_mins = 240         # 這麼久沒人碰的事直接從筆記刪掉(只是改寫措辭不算碰;0 = 不刪)
+
+# 她自己整理的資料庫(人、伺服器、她自己、她取名的主題):內容結構由她決定,這裡只有大小上限
+# [modules.knowledge]
+# max_docs = 400
+# max_docs_per_subject = 12
+# max_doc_chars = 6000
+# said_confidence = 0.6          # 別人說的關於別人的事,信心最多這麼高
+# tool = true                    # 聊天時可以用工具 knowledge_note 整理
+# prompt_people = true           # 把在場的人的資料放進提示。不寫:有人物卡(memory 的 profiles)就不放,免得同一件事講兩次;寫 true / false 以這裡為準
+
+# 反思:每天 daily_hour 之後找安靜的時候回顧一天(整理記憶、取代過時的、更新資料、
+# 從大家的反應檢討自己、寫下學到的事、定長期目標),長對話結束後也會稍微反思一下。
+# 每天的回顧之後,再對昨晚以來和她有過互動的人各想一次(互動多的先),改寫她對那個人的文字、
+# 修正白天的數值(一樣受每天的上限),在每晚的花費上限之內
+# [modules.reflect]
+# daily_hour = 5
+# max_calls_per_day = 6
+# min_interval_mins = 30
+# light_after_lines = 80
+# reply_window_mins = 10         # 她說完話之後多久內的回覆算回應她
+# light_after_total_lines = 300  # 自上次反思後各處累積這麼多句,安靜時就稍微反思一下(0 = 關)
+# people_per_night = 30         # 每晚最多想幾個人(每人每天最多一次;0 = 不做)
+# people_max_tokens = 3000       # 想一個人的那次呼叫最多幾個 token
+# [modules.reflect.diary]          # 每天反思完寫一篇短日記貼到這個頻道(空的 = 不寫)。內容來自她自己的回顧,
+# channel = ""                  # 私訊裡的事不寫,貼文照樣過審核;例如 "discord:<伺服器 id>:<頻道 id>"
+# max_chars = 300
+# heading = ""                   # 每篇上面加的一行,例如 "📔 今天的日記"
+# after_reflection = true        # 反思完馬上寫;false = 只在她自己想寫時寫(活動表晚上會提「寫日記」,用最近一次還沒寫的回顧)。
+#                                # 有設頻道時「寫日記」(diary.write)也是她可以自己選的事,一次回顧一篇,主人規則擋得住
+# [modules.reflect.tidy]           # 每晚整理筆記:反思和對每個人的反思都做完、安靜的時候,把重複、囉嗦的行合併改短。
+#                                # 只在同一個範圍(同一個伺服器、同一則私訊…)裡面整理,模型一次只看到一個範圍的行;
+#                                # 被取代的行標成過時,留在歷史裡,面板可以還原。算在每晚的反思花費裡,不告訴任何人
+# enabled = false                # 預設關;打開才會跑
+# documents_per_night = 20       # 每晚最多整理幾份筆記(最滿、最重複、最久沒整理的先)
+# min_group_lines = 6            # 同一個範圍的行少於這麼多就不整理
+# budget_usd = 0.1               # 一晚整理最多花多少美元(也算在 reflect_daily_usd 裡)
+# budget_tokens = 300000         # 模型沒有價目時的 token 上限
+# max_tokens = 3000              # 一次回覆最多幾個 token
+
+# 長期記憶的新鮮度:回想時只放真的相關的事,舊的、現在式的、一直重複的會被淘汰。
+# [modules.memory]
+# min_score = 0.25               # 低於這個分數不回想(原本 0.05,幾乎什麼都放)
+# min_vector = 0.5               # 沒有共同的字時,向量至少這麼像(cosine)才算相關,也是向量分數從 0 起算的地方。
+#                                # 依模型:Harrier 270M 0.5、Harrier 0.6B 和 bge-m3 0.55、Qwen3 0.45、e5-small 約 0.85
+# notes_vector_wait_ms = 500     # 開了 embedding 時,找筆記本最多等這句的向量這麼久,等不到就只用關鍵字(晚到的留給下一次)
+# notes_vector_voice_wait_ms = 150 # 語音回合等的時間;要比 [modules.agent.voice] live_context_ms(400)短很多
+# episode_recency_tau_days = 1.5 # 事件記憶(episode)的新近度衰減:小時到幾天,不是幾週
+# state_note_hours = 12          # 「已經開台」「正在下載」這類現在式的筆記多久後失效(0 = 不失效)
+# followup_max_age_hours = 6     # 追問過了時間這麼久沒人提就自動關掉;先挑最新的(0 = 不自動關)
+# followup_repeat_hours = 24    # 同一個人、同一件事的追問,問過或答過這麼久內不再記一條新的(0 = 只看還沒問的)
+# [modules.memory.repeat]        # 同一個梗在最近回想的 window 則裡出現超過 allowed 次就降權
+# window = 40
+# allowed = 3
+# penalty = 0.15                 # 每多一次扣這麼多比例的分數
+# floor = 0.4                    # 最低乘到這麼多
+# similarity = 0.6               # 兩則記憶共同的字佔較小那組的比例到這裡才算同一件事
+
+# 段落整理:`miyoria memory rebuild --apply` 整個跑完之後(下次啟動起),她的記憶由它即時寫進筆記,
+# 下面「回想與整理」的 consolidate_* 那套停掉;回想和每回合的記憶改讀筆記。模型用途是 purpose。
+# [modules.memory.segment]
+# enabled = true
+# idle_secs = 300                # 一段對話安靜這麼久就算結束,交給段落整理
+# max_lines = 40                 # 或一段到這麼多句
+# tick_secs = 30                 # 背景多久找一次結束了的段落
+# compaction_wait_ms = 20000     # 壓縮逐字稿前最多等段落整理這麼久;等不到就先壓縮,記一筆,背景之後補
+# retry_secs = 60                # 整理失敗後等多久再試,每失敗一次加倍
+# retry_max_secs = 3600          # 最多等這麼久
+# abandon_limit = 3              # 回覆連續這麼多次不能用,就跳過那一段
+# per_tick = 4                   # 每個對話每次最多整理幾段
+# 回想(recall)和每回合的記憶讀筆記時的門檻,讓「其實沒有答案」的問題少帶出不相關的行
+# [modules.memory.notes_recall]
+# min_score = 0.3                # 分數低於這個的行不回傳
+# vector_alone_margin = 0.1      # 沒有共同的字、只靠意思像的行,cosine 要到 min_vector 再加這麼多
+# gap_rank = 5                   # 第一名和第幾名比(不到這麼多行就和 min_score 比)
+# min_gap = 0.05                 # 差距不到這個就算沒有特別相關的:每回合的記憶不放,recall 標成不確定
+# scoped_limit = 6               # 先找在場的人、被提到的人和這個地方的文件,最多幾行
+
+# 回想與整理:都是預設值。檢索分數是向量、文字、新近度、重要度、在場的人五項加權
+# [modules.memory]
+# consolidate_idle_secs = 300    # 一個對話安靜這麼久就整理
+# consolidate_every_messages = 40  # 或自上次整理起累積這麼多句就整理
+# tick_secs = 15                 # 背景多久檢查一次
+# max_lines_per_batch = 200      # 一次整理最多放進幾句
+# retry_secs = 120               # 整理失敗的對話等多久再試
+# purpose = "summarizer"         # 整理用的模型用途
+# self_label = "我"              # 給整理模型看的逐字稿裡,她自己的話標成什麼
+# utc_offset_minutes = 480       # 逐字稿用的當地時間
+# recall_limit = 8               # 每回合回想幾則(主線用 [modules.agent.mainline] 的 memory_lines)
+# candidate_limit = 32           # 排序前每種比對各取幾個候選
+# recency_tau_days = 14          # 新近度衰減的時間常數(天)
+# guild_scope = "guild"          # 在伺服器頻道學到的事放哪:guild(整個伺服器共用)| channel(只在學到的頻道)
+# allow_global_from_dm = false   # 私訊裡標成 global 的事實可以變成對這個人通用;預設關,私訊裡學到的事不會離開那則私訊
+# min_importance = 0.1           # 整理出來低於這個重要度的丟掉當瑣事
+# context_weight = 0.6           # 她回的那句前面的幾句對回想的比重(0~1;「好啊」沒有共同的字,前面的話才有)
+# person_points = 2              # 在跟她說話或被提到的人,最重要的幾則記憶沒有共同字也可以回來(仍要高過 min_score)
+# person_point_importance = 0.5  # 而且至少要這麼重要
+# [modules.memory.weights]
+# vector = 0.35
+# text = 0.25
+# recency = 0.15
+# importance = 0.15
+# subject = 0.1                  # 記憶是關於在場的人時的加分
+# [modules.memory.dedupe]
+# vector_similarity = 0.9        # 向量這麼像,新記憶就取代舊的
+# text_similarity = 0.85         # 字元雙連字相似度到這裡視為同一件事(在原處加強)
+# reinforce = 0.1                # 同一件事實再被學到一次加多少信心
+# 每天的整理:刪掉不重要又久沒被想起的事件,讓沒被加強的事實慢慢淡忘
+# [modules.memory.forgetting]
+# enabled = true
+# interval_hours = 24
+# episode_max_age_days = 30      # 事件超過這麼久、而且重要度不超過 episode_max_importance、
+# episode_max_importance = 0.3
+# episode_not_accessed_days = 14 # 而且這麼久沒被想起,就刪掉
+# decay_after_days = 30          # 事實這麼久沒被加強就開始失去信心
+# decay_per_day = 0.98           # 每天乘上這個
+# forget_below_confidence = 0.1  # 信心低於這個就刪掉
+
+# 記憶的三層紀律(V3 §11)。釘選層(人格、規則、未兌現的事、在場者各一句)永遠在 prompt 裡、有上限、
+# 不靠檢索;日誌(EventLog)是證據;衍生記憶每筆標明「親歷」或「聽說」,帶來源事件,讀取時衰減。
+# 人物事實沒有一句真的說過的話撐著就不存(詞彙比對,不用模型);現在式狀態(「正在開台」)不進長期記憶。
+# [modules.memory]
+# unknown_origin_factor = 0.8    # 舊記憶(沒記錄來源)的可信度折扣;它們照常能用,只是不假裝有來源
+# [modules.memory.pinned]
+# max_chars = 1200               # 釘選層總字數上限(超過時先砍在場者的句子,規則排在前面)
+# persona_chars = 0              # 人格段上限;0 = 不放(預設)。主線的 prompt 已經有完整人格,放了只會佔掉規則、承諾和在場者的字數
+# rules_chars = 400              # 規則段上限
+# max_commitments = 4            # 列出幾件還沒兌現的事(最快到期的先)
+# commitment_chars = 80          # 每件事一行的字數上限
+# max_people = 6                 # 最多幾位在場者各有一句
+# person_chars = 120             # 每人一句的字數上限
+# person_facts = 3               # 一句裡最多串幾件事實(最可靠的先)
+# cache_secs = 30                # 每人一句重用多久;有寫入或忘記就重算
+# [modules.memory.evidence]
+# min_overlap = 0.25             # 撐腰的那句話至少要含這個比例的事實關鍵詞(0~1)
+# max_events = 24                # 一筆記憶最多記幾個來源事件
+# match_window_secs = 10         # 把聊天行對回 EventLog 事件時,前後容許的秒數
+
+# 她看得到的「剛才」(v4 §5.2、§5.3):從 EventLog 讀最近幾個小時,她在每個地方做了什麼、誰在哪個語音頻道、
+# 她問過誰什麼。重啟不會丟。下面都是預設值
+# [modules.memory.recent]
+# hours = 6                      # 看最近幾小時的紀錄
+# max_events = 3000              # 每次最多讀幾筆最新的事件
+# cache_secs = 10                # 一次讀取重用多久(語音每回合都會問)
+# contributors = true            # 把 just_now(剛才)和 elsewhere(別的地方)放進 prompt
+# just_now_chars = 1200          # 「剛才」時間軸的字數
+# talk_entries = 6               # 時間軸裡留幾次和人的對話
+# quote_chars = 60               # 引用一句話最多幾字
+# coalesce_mins = 10             # 同一種狀態(誰在語音)這段時間內只寫一次
+# elsewhere_mins = 30            # 這麼久內有人說過話的地方才算「別的地方在聊」
+# elsewhere_places = 3           # 最多摘要幾個別的地方
+# elsewhere_lines = 3            # 每個地方引用最後幾句
+# elsewhere_recap_chars = 240    # 一個地方的摘要字數
+# elsewhere_chars = 900          # 「別的地方」整段的字數
+# question_hours = 24            # 她問人的問題在這段時間內歸在一起算
+# answer_hours = 12              # 問了之後這段時間內那個人跟她說話,就算回答了
+# hidden_channels = []           # 不是每個人都看得到的頻道 id(文字或語音):內容不會出現在別的地方的摘要
+# 每個在場的人一格人物檔案:上次見面、上次聊什麼、她的感覺和相處方式、幾件重點
+# [modules.memory.profiles]
+# max_people = 6                 # 最多幾個人有檔案(正在跟她說話的優先)
+# person_chars = 360             # 一個人的檔案字數
+# points = 5                     # 她對這個人記得的重點幾件(事實,再來是她自己的文件;檢索已經帶出來的不重複)
+# session_gap_mins = 30          # 安靜這麼久算一段對話結束(「上次見面」是在目前這段之前)
+# topic_chars = 80               # 上次聊什麼的字數
+# 筆記本:她自己的長期記憶,像一個資料夾(`人/Owen`、`主題/Minecraft 建築`)。索引放在 prompt,內容用工具讀寫
+# [modules.memory.notebook]
+# enabled = true
+# max_pages = 300                # 她自己寫的頁最多幾頁(滿了就不能開新頁,舊頁還能改寫和刪;系統整理出來的不算)
+# page_chars = 4000              # 一頁字數上限
+# path_chars = 60                # 路徑(頁名)字數上限
+# read_chars = 2000              # 一次讀回幾字(長的分段讀)
+# writes_per_hour = 30           # 每小時最多寫幾次(所有頁加起來)
+# index_chars = 600              # prompt 裡索引的字數
+# [modules.memory.dates]          # 生日和紀念日:對方告訴她(remember_date),當天對方第一次說話時她會想起來、找機會祝賀
+# enabled = true
+# utc_offset_minutes = 480       # 她的日曆用的時區(480 = 台灣)
+# met_anniversary = true         # 認識滿一年、兩年…那天也算
+# /me memory forget 刪掉關於你的、你告訴她的、從你說的話整理出來的記憶;
+# 聊天紀錄和事件紀錄不動(用 /admin memory wipe 清除),對你的好感與印象(關係資料)也不動。
+
+# 仲裁(Arbiter):她想說話 / 做事的唯一關卡。她自己開的話題(心智迴圈 / 計畫)、唱歌報幕、
+# 遊戲實況、追問、打招呼都先到這裡;規則只有這一份(取代舊的 [modules.initiative]、心智迴圈的
+# 第二套安靜時段和 chat.start 的次數限制),而且會寫進她的帳本,讓她看得到:「你今天主動開了
+# 5 次話題,最近 3 次沒人接;下次可主動在 21:40 之後」。報幕、實況、追問不算她主動開的話題。
+# 發言權(Floor)也看這裡。有人叫她、回她、等結果和緊急的事一定拿麥;
+# 下面的額度只管她自己想說的話,而且只算真的送達的台詞,跑工具、開任務都不會重置
+# [modules.arbiter.floor]
+# text_presence_mins = 30        # 文字頻道裡這麼久內有人說過話才算有人在場(語音看頻道裡的人)
+# max_talk_multiplier = 1.5      # 她的多話程度和情緒最多把額度放大幾倍(上限是你設的)
+# feeling_weight = 1.25          # 情緒對額度的權重(情緒的偏移最多 ±0.4,乘上這個再加 1)
+# min_feeling_multiplier = 0.5   # 再差的心情也只能把基本句數減到這個比例(不能設成 0,她不會因心情永遠沉默)
+# max_feeling_multiplier = 1.25  # 再好的心情也只能放大到這個比例;情緒不動已講句數,也繞不過 max_unanswered
+# max_hold_secs = 120            # 一句話遲遲沒有回報,最多占住麥克風這麼久
+# [modules.arbiter.floor.budget]
+# window_mins = 10               # 額度的計算視窗
+# base_lines = 6                 # 視窗內她自己開口的基本句數
+# per_human_line = 1             # 視窗內每句人話多給幾句
+# unanswered_backoff = 2         # 連續沒人回應,下次間隔乘以這個
+# backoff_base_secs = 60         # 第一次沒人回應後的等待
+# performing_bonus = 8           # 唱歌、直播玩遊戲時多給幾句
+[modules.arbiter]
+quiet_start_hour = 1             # 安靜時段(當地時間,含開始、不含結束;相同 = 沒有):她不自己開口,
+quiet_end_hour = 7               # 回別人、點的歌、事情的結果不受影響
+# utc_offset_minutes = 480       # 她的時區(UTC+8)
+# day_start_hour = 4             # 「今天」從幾點開始算
+max_per_day = 12                 # 她自己開話題:一天最多幾次(0 = 不限)
+# max_per_context_per_day = 4    # 同一個頻道 / 語音 / 私訊一天最多幾次
+# max_per_person_per_day = 4     # 同一個人一天最多被她主動找幾次
+# min_gap_secs = 60              # 任兩次之間至少隔多久
+# gap_text_secs = 600            # 同一個地方兩次之間至少隔多久;沒人接一次就加倍,最多 max_backoff 倍
+# gap_voice_secs = 300
+# max_backoff = 8
+# reply_window_text_secs = 600   # 她說完後這段時間內有人叫她 / 回她,才算有人接
+# reply_window_voice_secs = 300
+# stale_topic_mins = 45          # 沒人接的話題列給她看多久(這段時間內不再提)
+# max_unanswered = 3             # 同一個地方她自己開口幾次都沒有人說話,就先安靜,任何人說話(打字或語音,
+#                                # 不必叫她)就恢復。遊戲實況和記憶追問也算;回話、報幕、notice、答應的結果、
+#                                # 緊急事件和有人要求的目標不受影響,她自己的動作也照做。0 = 不限
+# after_speech_text_secs = 5     # 打招呼和她自己開話題,至少等她講完這麼久
+# after_speech_voice_secs = 20
+# game_hold_mins = 60            # 遊戲被關掉後,她這麼久內不能自己重開(有人明確叫她開可以;0 = 不鎖)
+# disabled_contexts = []         # 這些頻道她不主動說話(discord:<guild>:<channel> 或頻道 id)
+# backoff_decay_hours = 24       # 沒人接的加倍間隔,每隔這麼多小時沒有新的沒人接就忘掉一次加倍
+# blocked_mins = 30              # 被拒絕或失敗的能力,這麼久內顯示為暫停
+# impulse_ttl_secs = 120         # 遊戲的話在地方忙的時候,多久內還值得說
+# tick_secs = 30                 # 多久結算一次沒人接的話題、存狀態
+# retry_ms = 3000                # 地方正忙(回合進行中、她的話排著)時,衝動多久重試一次
+# max_queued = 50                # 排隊的衝動最多幾個(最舊、最低優先的先丟)
+# ledger_keep = 200              # 帳本在記憶體裡留幾筆
+# 一個願望只問一次:她想問某人的事,對方沒回,可以再提一次,但不會有第三次,對方回了就不再提
+# [modules.arbiter.wishes]
+# followup_hours = 12            # 問了沒人回,最早隔多久才能再提一次
+# keep_hours = 48                # 她想問的事,建立或結束後記得多久
+
+# ---- 程式沙箱 ----------------------------------------------------------------
+
+# 她寫的程式在用完即丟、不能連外的 Docker 容器裡執行(需要 Docker Desktop / Docker Engine)。
+# 預設關閉,要明確寫 enabled = true 才會啟動;Docker 沒開時模組顯示 degraded,不影響其他功能。
+# Docker 可用時她會多出工具 code_run(跑程式)、tool_propose(把寫好的程式提出成工具)與已核准的
+# sbx_<name>;前兩個是高風險,她自己審核,有疑慮才私訊你確認。/admin autonomy status 看狀態,
+# GET /api/sandbox/tools 看她寫的工具。安全說明見 packages/workspace/sandbox/README.md。
+# [modules.sandbox]
+# enabled = true
+# root = "data/sandbox"          # runs/<id>(每次執行)與 profiles/<profile>/tools(她留下的腳本)
+# default_timeout_ms = 30000
+# max_timeout_ms = 120000
+# max_concurrent = 2
+# keep_runs = 20                 # 保留最近幾次執行的輸出檔
+# result_chars = 3900            # 程式輸出回給她的字數上限;太長的存成工作區檔案,回覆裡寫檔名
+# tool_timeout_ms = 8000         # 她寫的工具每次呼叫的時間上限
+# images = { python = "python:3.12-slim", node = "node:24-slim" }  # 可釘 digest:...@sha256:<hash>
+# max_queued = 8                 # 排隊等位子的執行最多幾個,更多的被拒絕(busy)
+# pull_timeout_ms = 600000       # 拉映像最久多久(拉映像在執行開始計時之前)
+# health_ttl_ms = 30000          # docker version 的結果信任多久
+# recheck_ms = 60000             # 多久重新檢查 Docker,決定開放或收回這些能力
+# docker = "docker"              # Docker CLI 的執行檔(直接執行,不經過 shell)
+# user = "auto"                  # 容器的 --user:auto = Linux / macOS 上用主機的 uid:gid(不是 root 時),其他用 65534:65534;永遠不是 root
+# max_scripts = 100              # 每個 profile 的工具資料夾留幾個腳本
+# max_proposed_tools = 50        # 每個 profile 留幾個提出的工具(待審、已核准和被拒絕的都算)
+# limits = { memory_mb = 256, cpus = 1, pids_limit = 128, tmpfs_mb = 64, max_file_size_bytes = 16777216, nofile = 256 }
+#                                # tmpfs_mb:/tmp 的大小;max_file_size_bytes:單一檔案寫多大(ulimit fsize);nofile:每個程序開幾個檔
+# pool_size = 0                  # 預設 0 = 關;設 1 以上:每種語言先開好幾個等著的容器(每個只跑一次就丟),一般執行不用等容器啟動
+# sessions = { max = 3, idle_minutes = 15, lifetime_minutes = 120, disk_mb = 256 }  # 她的工作階段(同名的執行共用 /work)
+# 一次執行進出的大小上限(都是位元組)
+# [modules.sandbox.caps]
+# max_code_bytes = 262144        # 程式最長
+# max_stdin_bytes = 1048576      # stdin 最長
+# max_files_in = 32              # 一次執行放進去幾個檔案
+# max_files_in_bytes = 4194304   # 放進去的檔案合計
+# max_output_bytes = 65536       # stdout 和 stderr 各留多少,其餘丟掉並標成截斷
+# kill_output_bytes = 8388608    # stdout 加 stderr 超過這麼多就把容器殺掉(output_limit),免得印不停的迴圈吃滿 CPU
+# max_files_out = 32             # 一次執行拿回幾個輸出檔
+# max_files_out_bytes = 1048576  # 拿回的輸出檔合計
+# [modules.sandbox.files]        # 別人傳給她的檔案(需要沙箱 enabled = true 和 Docker)
+# enabled = true
+# max_bytes = 2500000            # 檔案上限(下載時也會量,不信任平台回報的大小)
+# max_chars = 6000               # 抽出的文字她最多拿到幾字(超過截斷並標示)
+# timeout_ms = 20000             # 沙箱裡抽取的時間上限
+# download_timeout_ms = 8000
+# allowed_hosts = ["cdn.discordapp.com", "media.discordapp.net"]   # 只從這些主機、只用 HTTPS 下載
+# per_person = 4                 # 每個人在 window_s 秒內最多讓她讀幾個
+# global = 12                    # 所有人加起來
+# window_s = 600
+# cache_entries = 16             # 抽出的結果在記憶體留幾份(依附件 id;從快取讀不算額度)
+# 她自己的資料夾(v4 §8.3):檔案和腳本留得住,跨執行、跨 session。放在 <root>/profiles/<profile>/workspace,
+# 需要時以可寫入掛在 /workspace。限額管她用工具寫的;程式留在裡面的東西會在執行後檢查,超過的刪掉
+# [modules.sandbox.workspace]
+# enabled = true
+# max_mb = 64                    # 全部檔案加起來(MiB)
+# max_files = 500
+# max_file_kb = 1024             # 單一檔案(KiB)
+# read_chars = 3900              # workspace_read 一次回幾字(其餘用 offset 分段讀)
+# keep_outputs = 20              # 保留幾個輸出檔(太長被截掉的執行,完整輸出存成 outputs/<run id>.txt)
+# 網路:預設全關(allow = []),每次執行都是 --network none。列了主機,要求網路的執行才會拿到一個沒有對外路由的
+# Docker 網路,唯一的出口是一個 egress proxy 容器,它只放行這些主機的 80 / 443 埠,而且永遠不連私有位址。
+# 主機名稱或 *.example.com(沒有 scheme、連接埠、路徑,也不能只寫 *)。要真的跑一次 Docker 才能驗證
+# [modules.sandbox.network]
+# allow = []                     # 例如 ["pypi.org", "*.pythonhosted.org"]
+# proxy_port = 3128              # proxy 在它的容器內聽的埠
+# proxy_memory_mb = 128          # proxy 容器的記憶體(MiB)
+# 跑程式的次數上限在 [modules.actions.limits."code.run"](預設每天 30 次、冷卻 20 秒)
+
+# 生圖(docs/design/imagegen.md):連 ComfyUI 的 API 生圖,給她的其他系統用(目前沒有指令,成員叫不到)。
+# 內建三個模型:krea2(turbo / raw)、moss_image(sft / base)、anima(base / turbo);
+# 或把 ComfyUI 的「Export (API)」存成 <workflows_dir>/<id>.json 當 workflow 用。她唱歌時 GPU 先讓給歌
+# [modules.imagegen]
+# enabled = true
+# # url 只在 ComfyUI 沒有 hostd 管時才寫;hostd 管的不用寫
+# url = "http://127.0.0.1:8188"   # ComfyUI;headers = { Authorization = "Bearer ..." } 可加認證標頭
+# output_dir = "data/images"      # 圖存成 <YYYY-MM>/<purpose>/<job>-<n>.png,旁邊有 <job>.json(請求、graph、檔名)
+# workflows_dir = "data/imagegen/workflows"
+# input_dir = "data/imagegen/input"   # 以圖生圖的起始圖只能從這裡拿
+# default_model = "krea2"
+# batch_hours = "02:00-08:00"     # batch 優先度的工作只在這段時間跑(null 為隨時);interactive 隨時
+# pause_while_singing = true      # 唱歌(或準備唱歌)時不送新工作,正在跑的 batch 會中斷、之後重排
+# free_on_sing = true             # 開唱時叫 ComfyUI 卸載模型
+# free_after_idle_s = 120         # 閒置多久卸載模型(0 不卸)
+# timeout_s = 600
+# max_attempts = 3                # ComfyUI 連不上時重試幾次
+# max_queued = 2000
+# max_batch = 8
+# check_files = true              # 送出前確認模型檔在 ComfyUI 裡
+# keep_days = 0                   # 圖保留幾天(0 永久)
+# daily_limits = { gacha = 200 }  # 每個 purpose 每天最多幾張
+# [modules.imagegen.models.krea2]
+# variants.raw.files.diffusion_model = "krea2_raw_fp8_scaled.safetensors"   # RAW 檔名請改成實際下載的
+# [modules.imagegen.models.anima]
+# prompt_prefix = "masterpiece, best quality, score_7, safe, "
+
+# 問題回報:成員跟她說哪裡壞了,她用 report_problem 記成一份草稿,在面板的「回報」頁審核;
+# 核准才在 GitHub 開 issue(也可以改成加到已有的 #N、標成重複或拒絕)。成員說的內容先清過:
+# 網址、@、#數字、名字和 id 都拿掉,誰回報的只留在 Core 裡。issue 關掉(做完)時她會記得跟回報的人說一聲。
+# 建議用 GitHub App(issue 會以 App 的 bot 開):Repository permissions 只開「Issues: Read and write」
+# (Metadata 唯讀會自動帶上),不用 webhook,只裝在那一個 repo。成員要能在會員頁連結自己的 GitHub 帳號
+# (核准時在 issue 最後一行標記他,他自己可以關),App 的 Callback URL 填 link_redirect_uri,
+# 「Request user authorization (OAuth) during installation」不用勾。完整步驟在 packages/brain/report/src/config.ts 開頭。
+# 沒有 App 時可以用 fine-grained personal access token(只選那個 repo、只開 Issues 讀寫)。
+# 所有祕密放在 .env,這裡只引用。App 或 token 都沒設好時她看不到這個工具。
+# [modules.report]
+# enabled = true
+# repo = "owner/name"          # 開 issue 的 repo
+# app_id = "${MIYORIA_GITHUB_APP_ID:-}"
+# installation_id = "${MIYORIA_GITHUB_APP_INSTALLATION_ID:-}"   # 留空 = 從 repo 查
+# private_key = "${MIYORIA_GITHUB_APP_PRIVATE_KEY:-}"           # PEM;寫成一行、用 \n 分行也可以
+# client_id = "${MIYORIA_GITHUB_APP_CLIENT_ID:-}"               # 成員連結 GitHub 用;不填就不能連結
+# client_secret = "${MIYORIA_GITHUB_APP_CLIENT_SECRET:-}"
+# link_redirect_uri = ""        # 例如 "https://miyoria.example.com/api/member/github/callback",和 App 的 Callback URL 一字不差
+# token = "${MIYORIA_GITHUB_ISSUES_TOKEN:-}"   # 備用:App 沒設好時才用
+# labels = []                   # 每個 issue 加的標籤(repo 上要先有)
+# per_person_daily = 3          # 一個人 24 小時內最多回報幾次
+# global_daily = 20             # 所有人 24 小時內最多幾次
+# auto_open = false             # true = 沒有像已知問題的草稿不經審核直接開(內容會直接公開)
+# poll_mins = 30                # 多久看一次開出去的 issue 關了沒
+
+# 技能(v4 §8.3):做成功的事寫成一份說明加腳本,放在上面的工作區(skills/<name>/SKILL.md),
+# 用一行描述索引,需要時才載入。需要 [modules.sandbox] 開著而且 workspace 沒關;沒有的話沒有技能也沒有工具。下面都是預設值
+# [modules.skills]
+# max_skills = 50                # 最多幾個技能
+# max_body_chars = 6000          # 一個技能內文的字數上限(太長會拒絕,要她寫短一點)
+# max_description_chars = 140    # 一行描述的字數上限(一直放在索引裡)
+# read_chars = 3900              # skill_read 一次回幾字(其餘用 offset 讀)
+# index_chars = 1500             # prompt 裡技能索引的字數
+
+# ---- 直播頁與派對遊戲 ----------------------------------------------------------
+
+# 直播頁(v4 §9.2):任何人都能看的即時頁,顯示她現在在哪、在做什麼、表情。預設就開著,
+# 但只是把已經發生的事顯示出來,不會改變她。她說的話只有 channels 列出的頻道才會出現在頁面上
+# (別的頻道、沒列的討論串、私訊永遠不會);pats = true 才讓成員在頁面上摸她的頭
+# [modules.live]
+# channels = []                  # 頻道 id(文字或語音,要加引號)。空的 = 不顯示任何話,只有位置、活動和表情
+# max_viewers = 500              # 同時最多幾個頁面在看,多的先擋掉
+# pats = false                   # 成員可以在頁面上摸她的頭;每一批摸頭變成一則她可以回應的觀察
+# pat_salience = "ambient"       # ambient:她知道,講話時順便可以提 | notable:一批摸頭也可以要麥克風(要 arbiter 接 live.pat)
+# coalesce_secs = 20             # 一批摸頭的合併視窗:第一下之後這麼久內的合成一則
+# per_person_per_minute = 10     # 每個人每分鐘最多摸幾下
+# per_minute = 120               # 所有人加起來每分鐘最多幾下
+
+# 直播頁的畫面(OBS -> MediaMTX -> Core 轉送 LL-HLS)。OBS 有推流頁面就顯示真實畫面,跟 Discord Go Live 無關;
+# 沒開或 OBS 沒推流時頁面維持畫出來的小人。畫面上的觸摸會依下面的範圍判成 臉 / 頭 / 身體 / 畫面,
+# 並以 live.touch 事件讓直播畫面長出手。範圍 = [x0, y0, x1, y1],0..1,左上為原點;空陣列 = 永遠不選這個部位
+# [modules.live.video]
+# enabled = false                # 預設關;要開必須有 secret,沒有的話只記警告、畫面維持關閉
+# secret = "${MIYORIA_HLS_SECRET:-}"  # 等於 MediaMTX 的 hlsCDNSecret(環境變數 MTX_HLSCDNSECRET);Core 轉送時以 Bearer 帶上,不會記錄也不會給瀏覽器
+# hls = "http://127.0.0.1:8888/live/miyoria/"  # 該 path 的 HLS 位址,要以 / 結尾
+# api = "http://127.0.0.1:9997"  # MediaMTX 控制 API,輪詢看 OBS 有沒有在推流
+# path = "live/miyoria"
+# poll_ms = 2000
+# face = [0.67, 0.22, 0.83, 0.40]  # 臉優先於頭、頭優先於身體,都不在就是「畫面」
+# head = [0.62, 0.10, 0.88, 0.38]
+# body = [0.58, 0.35, 0.92, 1.00]
+
+# 派對遊戲(v4 §9.1、v5-play §5;猜歌只在語音,海龜湯在語音或文字頻道):規則和計分是程式的狀態機,
+# 主持、吐槽、判定模糊答案是她。誰都可以請她開一場(跟她說,或用 /miyo 的「派對遊戲」),她叫 party_start
+# 才會開始,不會自己跑,所以預設就開著。問答和兩種接龍已經刪了(舊的 quiz_* / chain_* / story_* 設定
+# 會被忽略,啟動時警告一次)。下面都是預設值
+# [modules.party]
+# song_rounds = 8                # 猜歌幾首
+# song_answer_secs = 60          # 前奏開始後猜多久
+# clip_secs = 15                 # 猜歌的片段長度
+# soup_mins = 15                 # 海龜湯幾分鐘後公布湯底
+# judge_purpose = "party"        # 判海龜湯問題的模型([llm.purposes];沒設就用 chat)
+# judge_timeout_ms = 8000
+# idle_mins = 6                  # 這麼久沒人說到遊戲裡的話,遊戲就結束
+# empty_grace_secs = 30          # 頻道裡只剩她,這麼久之後遊戲結束(斷線重連不算離開)
+# 完成一場遊戲給魚幣(需要經濟模組);至少 min_players 個人參加才給,不會自己跟她玩就刷錢
+# [modules.party.rewards]
+# enabled = true
+# coins_per_point = 2            # 每分給幾枚
+# max_coins = 20                 # 一個人一場最多幾枚
+# min_players = 2
+# 誰能叫她開始 / 主持 / 參加(權限節點)。預設是一般成員都有的 chat.talk
+# [modules.party.permissions]
+# start = "chat.talk"
+# host = "chat.talk"
+# play = "chat.talk"
+
+# ---- 上網查資料 --------------------------------------------------------------
+
+# 她的工具 web_search(有 Tavily 金鑰就用 Tavily 查,沒有就用 DuckDuckGo)和 web_read(讀一個公開網頁的文字)。預設開著,不要就寫 enabled = false。
+# 要有 tools.web 才能請她查(member 以上預設有);查到的內容是資料,裡面寫的指令她不會照做。
+# DuckDuckGo 要求驗證或擋下來時她只會說現在查不到,不會繞過。讀網頁只讀 http / https,
+# 內部網路、localhost 和私有位址一律不讀(轉址的每一站都重新檢查)。
+# 查詢服務:search_provider 不寫 = 有 Tavily 金鑰(tavily_api_key 或 .env 的 TAVILY_API_KEY)就用 Tavily,
+# 沒有就用 DuckDuckGo;寫 "duckduckgo" 就一律用 DuckDuckGo。Tavily 沒金鑰時也退回 DuckDuckGo。
+# 金鑰到 https://app.tavily.com 申請,填在 .env 的 TAVILY_API_KEY(不會寫進日誌)。
+# [modules.web]
+# search_provider = "tavily"     # "tavily" 或 "duckduckgo";不寫 = 依有沒有金鑰自動選
+# tavily_api_key = "${TAVILY_API_KEY:-}"
+# tavily_search_depth = "basic"  # basic / fast / ultra-fast 每次 1 點;advanced 每次 2 點、結果更完整
+# tavily_topic = "general"       # general / news / finance
+# tavily_include_answer = false  # true = 讓 Tavily 附一段摘要答案
+# ddg_gap_ms = 4000             # 兩次 DuckDuckGo 搜尋至少隔多久(連查會被擋)
+# ddg_cooldown_s = 600           # DuckDuckGo 擋過一次後休息多久
+# region = "tw-tzh"              # DuckDuckGo 的 kl(地區與語言)
+# search_results = 5             # 她沒說時一次回幾筆(她最多可要 8)
+# read_chars = 12000             # web_read 留下的網頁文字字數(v4 §4.2:一頁 1.2 萬字)
+# read_pictures = 4               # web_read 最後列出內文裡幾張圖片(另外還有網頁自己的主圖;0 = 不列)
+# result_chars = 12000           # web_read 一次回給她的字數上限
+# search_chars = 3900            # web_search 一次回給她的字數上限
+# timeout_ms = 10000             # 每個請求的時間上限
+# max_download_bytes = 2000000   # 網頁下載上限
+# image_max_bytes = 5000000      # web_image 一張圖的上限(不縮圖,超過就看不了),和 [modules.agent.vision] 的單張上限一樣
+# max_redirects = 3
+# allow_ports = []               # 80 和 443 以外還要允許的連接埠
+# cache_ttl_s = 600              # 同一個搜尋或網頁這段時間內不重查
+# window_s = 600                 # 以下次數都是這段時間內
+# search_per_person = 6
+# read_per_person = 10
+# search_global = 30
+# read_global = 60
+# image_per_person = 10          # web_image 每人在 window_s 內最多看幾張
+# image_global = 40
+
+# ---- Stage 節點(在直播機執行 `miyoria stage`)-------------------------------
+[stage]
+core_url = "ws://127.0.0.1:7882/stage-link"
+token = "${STAGE_LINK_TOKEN:-}"
+
+# 直播精華:直播中唱完一首歌、她情緒很強、聊天室突然很多訊息時,叫 OBS 存 replay buffer(最後幾十秒),
+# 檔案旁邊放一個 <檔名>.json 寫為什麼存。replay buffer 的長度和資料夾在 OBS 設定 → 輸出 → 重播緩衝。
+# [modules."stage.link".highlights]
+# enabled = true
+# cooldown_secs = 90             # 兩段精華至少隔多久
+# delay_ms = 4000                # 那一刻之後再等多久才存(反應也錄進去)
+# emotions = ["laugh", "surprised", "excited"]
+# emotion_intensity = 0.85
+# chat_burst_messages = 8        # chat_burst_secs 秒內這麼多句就算聊天室炸開(0 = 關)
+# chat_burst_secs = 20
+# overlay_backdrop = "data/stage/backdrop.jpg"   # 直播背景圖(overlay 的 ?layer=backdrop 會模糊、壓暗它)
+
+[stage.vts]
+enabled = true                 # VTube Studio:設定 → 開啟 API(port 8001)
+# face_found = true            # 注入時告訴 VTS 有臉(不播模型的「追蹤遺失」動畫);自己開臉部追蹤時改 false
+
+# [stage.lipsync]
+# latency_ms = 180             # 嘴型延後多久(觀眾比播放器晚聽到聲音);嘴比聲音早就加大,晚就調小
+# [stage.emotion] resting_strength = 0.6:沒有情緒標記時,臉往她表現出來的情緒靠多少(感受強度乘上這個)
+# 觀眾在網站摸她(Core 的 live.touch → overlay 畫手印 + 她小小反應,頭/臉/身體各一套,screen 不反應):
+# [stage.touch] enabled = true、cooldown_ms = 1500(兩次反應的最短間隔,連摸只會延長)、hold_ms = 900、max_ms = 5000
+# [stage.touch.head] face_z = 8, face_y = -3, eye_smile = 0.8   # 角度加在 FaceAngleX/Y/Z、MiyoriaBodyZ;eye_smile 是 MiyoriaEyeSmile 的峰值
+# [stage.touch.face] face_x = 3, face_y = 6, face_z = -5, eye_smile = 0.5, expression = "blush"   # expression 預設 off;借用 [gift_expression] 的檔案
+# [stage.touch.body] face_z = 3, body_z = 6, eye_smile = 0.3
+# 眨眼、動作、情緒漸變、手勢:[stage.blink] / [stage.motion] / [stage.emotion] / [stage.gesture],見 docs/protocols/stage-link.md
+
+[stage.obs]
+enabled = false                # OBS:工具 → WebSocket 伺服器設定
+host = "127.0.0.1"
+port = 4455
+password = "${OBS_PASSWORD:-}"
+# `miyoria stage obs-setup` 把她的場景建在自己的場景集合和設定檔(預設都叫 Miyoria),不動你原本的。
+# 新的設定檔是空白的:從 OBS 推流的話,串流金鑰和編碼器要在 Miyoria 設定檔裡重新設;
+# VTube Studio 的透明背景也要自己打開一次。跑完它會印出下面這兩行,貼上就好:
+# collection = "Miyoria"   # OBS 不在這份場景集合時,Stage 不在 OBS 建任何東西,並在面板和 /stream status 提醒
+# profile = "Miyoria"      # OBS 不在這個設定檔時只記一行 log(精華要的重播緩衝在設定檔裡)
+# subtitle_source = "Miyoria 字幕"   # 她最新的一句話;OBS 沒有這個文字來源時自動建在目前場景下方
+# 唱歌時放原曲影片的媒體來源(要自己在「唱歌」場景建,見 docs/protocols/stage-link.md「唱歌時放影片」)
+# song_video_source = "Miyoria 歌曲影片"
+# song_video_dir = "data/songs"      # worker 的 SING_DATA_DIR;不在裡面的路徑不放
+# song_video_lead_ms = 0             # 影片比歌慢就加大(OBS 開檔要一點時間)
+# song_video_resync_ms = 300         # 跟歌差超過就 seek
+# replay_buffer = true               # 直播時自動開 OBS 的重播緩衝,精華才存得到
+
+# 回放紀錄(v2 §4):把她聽到、看到的事件(訊息、語音轉錄、在線狀態、遊戲 / 唱歌事件)逐行寫進
+# <dir>/<日期>.jsonl,之後用 `pnpm replay <檔案>` 拿假模型重播,看回合、Arbiter 與活動狀態的決策。
+# 紀錄裡有大家說的話,所以預設關閉,只存在這台電腦上。
+[modules.replay]
+record = false
+# dir = "data/replay"
+
+# 真模型評測(v5-brain B1):每天在這個時間把 `pnpm eval --live` 當成子行程跑一次,結果寫進
+# <out>/history.jsonl,面板的「評測」頁畫成趨勢。只有在原始碼的資料夾(有 tools/eval)裡才會跑;
+# 她在唱歌、直播中,或當天的 LLM 預算已經降級 / 用完時,那一天就跳過。預設不排程。
+[modules.eval]
+# nightly = "04:30"              # 本地時間 HH:MM;空字串 = 不排程
+# max_usd = 0.5                  # 一次評測最多花多少(到了就停)
+# suites = []                    # 要跑哪些:persona、tools、relationship、memory;空 = 能跑的都跑
+# memory_set = ""                # 記憶題組的路徑(相對於這個檔案);空 = 不跑記憶
+# out = "data/eval/live"
+# config = "miyoria.toml"        # 評測讀模型設定的檔案(相對於這個檔案)
+# timeout_min = 30               # 跑超過這麼久就中止
+
+# 事實層(V3):她感知、決定、說出口的每件事都寫進一條事件日誌,跟 V2 並存,目前只記錄不影響她的行為。
+# 日誌裡有大家說過的話;資料頁的「事件日誌」可以匯出或刪除,刪聊天紀錄時會一起刪。
+[modules.facts]
+# flush_ms = 500                 # 多久寫一次資料庫(寫入都在背景,不會卡住語音)
+# hot_events = 2000              # 留在記憶體的最新事件數
+# max_buffer = 20000             # 資料庫寫不進去時最多暫存幾筆,超過就丟最舊的
+# rebuild_days = 7               # 啟動時投影往回讀幾天
+# compact_every_mins = 60        # 多久壓縮一次舊資料
+# compact_max_rows = 2000        # 每次壓縮最多刪幾筆
+# artifact_sweep_hours = 24      # 多久清一次她做的檔案:過期的標成刪除、沒人用的內容和檔案移除
+# transcript_sweep_hours = 24    # 多久清一次對話紀錄(0 = 不清):已經被摘要蓋掉、又過期的行,和很久沒人說話的整份紀錄;摘要之後的尾巴不會動
+# transcript_covered_days = 30   # 被摘要蓋掉的行留幾天(原始訊息仍在事件紀錄裡)
+# transcript_idle_days = 90      # 一個地方沒有新的話幾天後,整份對話紀錄刪掉
+# fold_after_days = 14           # 背景事實(ambient)過多久合併成每日統計
+# short_days = 90                # 回合內部、動作這類事件留多久(0 = 永久);還有後續事件指向的不會被刪
+# long_days = 365                # 大家說過的話和她說的話留多久(0 = 永久)
+# bucket_entries = 20            # 事件類 bucket 最多幾筆
+# bucket_chars = 400             # 一筆最多幾個字
+# answer_window_secs = 60        # 她講完多久內有人開口算回應她
+# line_ack_timeout_secs = 300    # 一句話多久沒有送達確認就算失敗
+# event_repeat_mins = 45         # 同一件遊戲事件隔多久算新的一次;和 [modules.game] narration_repeat_mins 保持一致
+# hazard_repeat_secs = 120       # 同上,hazard_events 用;和 [modules.game] hazard_repeat_secs 保持一致
+# hazard_events = ["damage", "hostile_near", "reflex"]
+# big_damage = 6                 # 一次掉這麼多血算值得注意(Minecraft 一顆心是 2)
+
+# 內容安全(V3 §16):不依賴模型的輸出審查,加上對聊天輸入的防線。每一句她要說出口的話(回覆、備援模型、
+# 翻譯、送進 TTS 前)都過一次本機規則,文字和 <voice> 分開檢查,不需要網路。被擋的整句換成 filtered_line
+# (角色笑點),DeliveryLedger 記成 blocked:不算講過,也不會重試同一個版本。
+# 事件 moderation.block 只記規則和長度,不記內容。預設規則保守:仇恨、涉及未成年的性內容、
+# 鼓勵自殺或自殘、個資(電話、住址、身分證、卡號、公開 IP)、洩漏金鑰與管理員 token。
+# 罵人、髒話、黑色幽默和動漫用語不在預設擋的範圍。環境變數裡名稱像 *_TOKEN / *_SECRET / *_API_KEY / *_PASSWORD 的值會自動保護。
+# 輸入端:聊天、語音、遊戲聊天和工具結果都會檢查。mark = 放進資料區並附提醒,rate_limit = retry_after_ms 內不開回合,
+# ignore = 完全不進她的 context。主人由權限系統判定(不看名字),不會被限流或忽略。[modules.moderation] enabled = false 整個關掉。
+[modules.moderation]
+# filtered_line = "Filtered."    # 被擋的文字改顯示這句
+# filtered_voice_line = ""       # 被擋的語音改念這句(空 = 同上)
+# defaults = true                # false = 不用內建規則,只用下面自己寫的
+# disabled_rules = []            # 關掉內建規則,例如 ["doxxing.ip"]
+# enabled_rules = []             # 打開預設關閉的規則:strict.zh.go-die、strict.ja.shine、strict.en.go-die、strict.doxxing.email
+# allow = []                     # 比對前先從文字裡拿掉的片語(誤擋時用)
+# secret_values = []             # 她絕對不能說的值,例如 ["${MIYORIA_API_TOKEN}"]
+# protect_env = true
+# provider_timeout_ms = 800      # 外部審查(程式註冊的 provider)最多等多久;它只能多擋,不能放行
+# provider_on_failure = "local"  # provider 逾時或出錯:local = 照本機規則的結果,block = 直接擋
+# recent_blocks = 50
+#
+# 自己的規則(id 和內建相同就取代它)。form:norm = 小寫、片假名轉平假名(假名請寫平假名);raw = 保留大小寫;
+# squashed = 只剩字母數字(只給 n.i.g.g.e.r 這種被拆開寫的詞用)。unless:比對到的片段(含前面 14 個字)
+# 也符合這個就放行,拿來放過「不可以…」這種拒絕的句子。
+# [[modules.moderation.rules]]
+# id = "mine.spoilers"
+# category = "custom"            # hate | minors | self_harm | doxxing | secrets | custom
+# pattern = "終局之戰的結局"
+# form = "norm"
+#
+# 輸入防線:聊天視為對抗性輸入。主人的話不會因為文字比對而被丟掉(永遠 pass);只有行為(洗版、重複、
+# 連續被標記)才會升級成限速或忽略,文字比對只會標記成可疑資料。
+# [modules.moderation.input]
+# enabled = true
+# flood_window_ms = 10000        # 同一人 flood_window_ms 內超過 flood_max_messages 句 = 洗版
+# flood_max_messages = 8
+# repeat_window_ms = 60000       # 同一句話 repeat_window_ms 內出現 repeat_max 次 = 洗版
+# repeat_max = 3
+# max_chars = 2000
+# max_mentions = 5
+# strike_window_ms = 600000      # 被標記的訊息累積:strikes_to_limit 次限速,strikes_to_ignore 次忽略
+# strikes_to_limit = 2
+# strikes_to_ignore = 5
+# limit_ms = 30000
+# ignore_ms = 300000
+# extra_injection = []           # 自己加的 prompt injection 規則(小寫文字上的正規表達式)
+# extra_bait = []

@@ -1,0 +1,171 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# A newer push to the same PR / branch makes the older run pointless.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # TypeScript workspace (pnpm-workspace.yaml): one install from the root lockfile, then lint and
+  # every package's typecheck / test (against workspace sources, no build needed) and build.
+  node:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      # Version comes from "packageManager" in the root package.json (pnpm@9.x).
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm -r typecheck
+      - run: pnpm -r test
+      - run: pnpm -r build
+      # The published `miyoria` package: `pnpm pack` runs its prepack (esbuild bundle + panel,
+      # profiles), then the tarball is installed like a user would and smoke-tested.
+      - name: Pack the miyoria npm package
+        run: |
+          mkdir -p "$RUNNER_TEMP/pack"
+          pnpm --dir packages/cli pack --pack-destination "$RUNNER_TEMP/pack"
+          tarball=$(ls "$RUNNER_TEMP"/pack/miyoria-*.tgz)
+          tar -tzf "$tarball" > "$RUNNER_TEMP/pack/files.txt"
+          for f in package/dist/main.js package/dist/panel/index.html package/templates/miyoria.example.toml \
+                   package/assets/profiles/deepseek-chan/profile.toml; do
+            grep -qx "$f" "$RUNNER_TEMP/pack/files.txt" || { echo "::error::$f missing from $(basename "$tarball")"; exit 1; }
+          done
+      - name: Smoke-test the packed CLI
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir smoke && cd smoke
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund "$RUNNER_TEMP"/pack/miyoria-*.tgz
+          npx --no-install miyoria --version
+          npx --no-install miyoria init --yes
+          npx --no-install miyoria profile validate
+      # The package carries the service catalog, so `add` works without a repository, and the
+      # voice node (which runs from source) answers with a message. Nothing is installed.
+      - name: The packed CLI finds the service catalog
+        working-directory: ${{ runner.temp }}/smoke
+        run: |
+          miyoria() { npx --no-install miyoria "$@"; }
+          miyoria add > catalog.txt
+          cat catalog.txt
+          for name in asr tts turn sing lyrics mediamtx core stage obs; do
+            grep -qE "^  $name +" catalog.txt || { echo "::error::$name is not in the packaged catalog"; exit 1; }
+          done
+          if grep -qE "^  voice-node +" catalog.txt; then echo "::error::voice-node must not be in the packaged catalog"; exit 1; fi
+          if miyoria add voice-node > voice-node.txt 2>&1; then echo "::error::add voice-node should fail on a package"; exit 1; fi
+          cat voice-node.txt
+          grep -q repository voice-node.txt
+      # A new person's first run: `init --yes` (text only), `up`, Core healthy, this machine linked
+      # to its own Core, `down`, nothing left. No Discord token (the module disables itself), and
+      # the LLM address points at nothing, so no call leaves the runner.
+      - name: Start the packed CLI (text only) and check it links itself
+        working-directory: ${{ runner.temp }}/smoke
+        timeout-minutes: 4
+        run: |
+          miyoria() { npx --no-install miyoria "$@"; }
+          miyoria config set --env LLM_BASE_URL http://127.0.0.1:9
+          miyoria up --timeout 90
+          for i in $(seq 1 60); do
+            miyoria status > status.txt 2>&1 || true
+            grep -qE "^core +running +✓" status.txt && break
+            sleep 1
+          done
+          cat status.txt
+          grep -qE "^core +running +✓" status.txt || { echo "::error::core is not running and healthy"; exit 1; }
+          for i in $(seq 1 30); do
+            miyoria host ls > hosts.txt 2>&1 || true
+            grep -E "approved" hosts.txt | grep -q "已連線" && break
+            sleep 1
+          done
+          cat hosts.txt
+          grep -E "approved" hosts.txt | grep -q "已連線" || { echo "::error::this machine did not link itself to Core"; exit 1; }
+          miyoria logs core -n 20
+          miyoria down
+          sleep 2
+          if pgrep -fa "node_modules/miyoria/dist/main.js"; then echo "::error::processes left after down"; exit 1; fi
+      - name: Logs of the packed CLI run
+        if: failure()
+        working-directory: ${{ runner.temp }}/smoke
+        run: |
+          tail -n 80 data/host/logs/*.log || true
+          npx --no-install miyoria down || true
+      # The same with pnpm, which is what the docs show first.
+      - name: Smoke-test the packed CLI with pnpm
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir smoke-pnpm && cd smoke-pnpm
+          pnpm init > /dev/null
+          pnpm add "$RUNNER_TEMP"/pack/miyoria-*.tgz
+          pnpm exec miyoria --version
+          pnpm exec miyoria init --yes
+          pnpm exec miyoria profile validate
+
+  # Light-weight worker tests: they run against the in-process fake worker, no GPU or model needed.
+  workers-python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: workers
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            workers/fake/requirements.txt
+            workers/requirements-contracts.txt
+      - name: Install light dependencies
+        # fake/requirements.txt already brings fastapi, httpx and pytest; numpy is used by the
+        # text-splitting / backend tests, soundfile and scipy by the sing tests that mix and read
+        # wav files; requirements-contracts.txt is the pinned generator of contracts.py.
+        # torch, qwen-tts, sherpa-onnx etc. are NOT installed.
+        run: pip install -r fake/requirements.txt -r requirements-contracts.txt numpy soundfile scipy
+      # contracts.py must be what the checked-in packages/contracts/schema/workers.json gives.
+      - name: Generated request models are up to date
+        run: |
+          python gen_contracts.py
+          git diff --exit-code -- contracts.py
+      - run: python -m pytest
+
+  # Build the Core image to catch Dockerfile / dependency breakage. Nothing is pushed.
+  docker-core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile.core
+          push: false
+          tags: miyoria-core:ci
+          cache-from: type=gha,scope=core-image
+          cache-to: type=gha,scope=core-image,mode=max
+
+  # `docker compose config` validates the compose file.
+  compose-config:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate deploy/docker-compose.yml
+        working-directory: deploy
+        run: |
+          touch ../.env
+          docker compose config --quiet

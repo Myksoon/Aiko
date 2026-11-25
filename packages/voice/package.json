@@ -1,0 +1,48 @@
+{
+  "name": "@miyoria/voice",
+  "version": "0.1.0",
+  "description": "voice: Voice pipeline: the voice-node link (module `voice.link`) and listening / speaking (module `voice`); speech: ASR / TTS provider interface, fallback chains and the speech module",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    "./voice": {
+      "@miyoria/source": "./voice/src/index.ts",
+      "types": "./dist/voice/src/index.d.ts",
+      "default": "./dist/voice/src/index.js"
+    },
+    "./speech": {
+      "@miyoria/source": "./speech/src/index.ts",
+      "types": "./dist/speech/src/index.d.ts",
+      "default": "./dist/speech/src/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@miyoria/commands": "workspace:*",
+    "@miyoria/contracts": "workspace:*",
+    "@miyoria/gate": "workspace:*",
+    "@miyoria/llm": "workspace:*",
+    "@miyoria/runtime": "workspace:*",
+    "@miyoria/store": "workspace:*",
+    "@miyoria/types": "workspace:*",
+    "opencc-js": "^1.4.2",
+    "ws": "^8.19.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/ws": "^8.18.1",
+    "smol-toml": "^1.9.1",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.12"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "name": "aiko-monorepo",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:watch": "vitest",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "bootstrap": "node scripts/setup.mjs",
+    "dev": "tsx --conditions=@miyoria/source packages/cli/src/main.ts",
+    "dev:core": "tsx --conditions=@miyoria/source packages/cli/src/main.ts core",
+    "replay": "node tools/replay/bin/replay.mjs",
+    "eval": "tsx --conditions=@miyoria/source tools/eval/src/cli.ts",
+    "contracts:gen": "pnpm --filter @miyoria/contracts gen",
+    "build:web": "pnpm --filter @miyoria/panel --filter @miyoria/overlay build",
+    "release:pack": "pnpm build:web && pnpm --dir packages/contracts pack && pnpm --dir packages/sdk pack && pnpm --dir packages/cli pack",
+    "release:publish": "pnpm build:web && pnpm --dir packages/contracts publish --access public && pnpm --dir packages/sdk publish --access public && pnpm --dir packages/cli publish --access public"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.4",
+    "@types/node": "^24.19.2",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.12"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@biomejs/biome",
+      "@snazzah/davey",
+      "esbuild",
+      "sharp",
+      "zeromq"
+    ]
+  }
+}

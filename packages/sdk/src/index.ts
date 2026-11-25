@@ -1,0 +1,88 @@
+// @miyoria/sdk: write Miyoria extensions in TypeScript.
+
+export {
+  type CommandArg,
+  type CommandDefinition,
+  type EventHandler,
+  type ExtensionContext,
+  type ExtensionDefinition,
+  ExtensionRuntime,
+  type LogFields,
+  type Logger,
+  type PromptContributor,
+  type PromptSectionInput,
+  type RunOptions,
+  type ToolDefinition,
+  commandPath,
+  commandSpec,
+  defineExtension,
+  hostMismatch,
+  runExtension,
+  startStdio,
+  toolDecl,
+} from "./extension.js";
+export * as Events from "./events.js";
+export { FrameBodyDecoder, FrameDecoder, FramingError, MAX_FRAME, encodeFrame } from "./framing.js";
+export {
+  type ActionResult,
+  type GameAction,
+  type GameActionSpec,
+  type GameAdapter,
+  type GameEvent,
+  type GameInfo,
+  type GameObservation,
+  type RegisteredAdapter,
+  actWorker,
+  describeActions,
+  formatObservation,
+  registerGameAdapter,
+} from "./game.js";
+export {
+  CANCEL_METHOD,
+  type NotificationHandler,
+  type PeerBaseOptions,
+  type PeerOptions,
+  type PeerRole,
+  type RequestHandler,
+  RpcError,
+  RpcPeer,
+  type StreamPeerOptions,
+  type TransportPeerOptions,
+} from "./rpc.js";
+export {
+  MAX_TASK_BUDGET_S,
+  STEER_OUTCOMES,
+  type StructuredState,
+  TASK_FAILURE_CODES,
+  type TaskContext,
+  type TaskEvent,
+  type TaskEventType,
+  type TaskExecutor,
+  type TaskExecutorInfoInput,
+  TaskFailure,
+  type TaskFailureCode,
+  type TaskGoalSpec,
+  type TaskId,
+  type TaskResult,
+  TaskRunner,
+  type TaskRunnerOptions,
+  type TaskSpec,
+  type TaskSteer,
+  type TaskWorker,
+  type SteerOutcome,
+  isTaskFailureCode,
+  isTerminalTaskEvent,
+  taskTopic,
+} from "./task.js";
+export { definitionPattern, is, isValidTopic, topicMatches } from "./topics.js";
+export {
+  MAX_MESSAGE_BYTES,
+  type RpcTransport,
+  type RpcTransportSink,
+  StreamTransport,
+  type StreamTransportOptions,
+  type WebSocketEventLike,
+  type WebSocketLike,
+  WebSocketTransport,
+} from "./transport.js";
+export * from "./types.js";
