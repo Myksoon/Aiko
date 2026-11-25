@@ -642,13 +642,13 @@
     },
     {
       "name": "draw_picture",
-      "description": "在文字頻道傳送你畫的圖、像素畫或寫實日常照片(不含文字,要說的話請另外直接打字)。只要答應對方要傳照片、自拍、食物照或塗鴉,必須在這一輪立刻實際呼叫本工具(絕不要只回「gimme a sec」或「等一下」而不呼叫,否則什麼都不會送出)。如果要顯示同一件事的後續進度(例如繼續畫同一隻恐龍),務必用 mode='continue' 並填上 canvas_id(不要重新畫一張無關的圖)。語音頻道不用。",
+      "description": "Generate and send a picture in Discord text chat (image-only; write any caption/reply text normally). You HAVE this capability—never claim you cannot send or generate pictures. Use medium='photo' when asked for a SFW photo, selfie, 'kirim foto', 'pap', or 'send a pic'; use medium='sketch' or 'pixel' for drawings. When anyone asks for a SFW photo, selfie, drawing, or to test your image generation, call this tool immediately in the SAME turn (never just say 'wait'/'bentar' without calling it, and never stubbornly decline normal SFW requests). Only refuse strictly NSFW, nude, lingerie, swimsuit, or sexually explicit requests. To edit or show progress on a recent picture, pass mode='continue' with canvas_id. Not available in voice channels.",
       "parameters": {
         "type": "object",
         "properties": {
           "mode": {
             "default": "new",
-            "description": "new 畫一張新的; continue 在原本那張上繼續加進度",
+            "description": "'new' creates a new picture; 'continue' edits/updates an existing canvas.",
             "type": "string",
             "enum": [
               "new",
@@ -656,12 +656,12 @@
             ]
           },
           "canvas_id": {
-            "description": "mode='continue' 時必填,填入要延續的畫布代號(例如 c1)",
+            "description": "Required when mode='continue': the canvas id to update (e.g. 'c1').",
             "type": "string"
           },
           "medium": {
             "default": "sketch",
-            "description": "sketch 筆記本草圖/塗鴉; pixel 像素畫; photo 寫實日常照片/自拍視角",
+            "description": "'photo' for SFW selfies, portraits, or candid everyday snapshots (foto/pap/selfie/pic); 'sketch' for notebook pencil doodles; 'pixel' for pixel art.",
             "type": "string",
             "enum": [
               "sketch",
@@ -670,17 +670,17 @@
             ]
           },
           "subject": {
-            "description": "mode='new' 時必填:要畫或拍的主題(英文描述最準)",
+            "description": "Required when mode='new': concise English description of the SFW scene, selfie, or drawing subject.",
             "type": "string",
             "maxLength": 180
           },
           "setting": {
-            "description": "可選:場景、桌面或光線鎖定描述",
+            "description": "Optional: setting, room/desk details, or lighting lock.",
             "type": "string",
             "maxLength": 200
           },
           "change": {
-            "description": "mode='continue' 時必填:這次新增了什麼細節或進度",
+            "description": "Required when mode='continue': what incremental change or detail to add.",
             "type": "string",
             "maxLength": 240
           }
@@ -3134,13 +3134,13 @@
     },
     {
       "name": "draw_picture",
-      "description": "在文字頻道傳送你畫的圖、像素畫或寫實日常照片(不含文字,要說的話請另外直接打字)。只要答應對方要傳照片、自拍、食物照或塗鴉,必須在這一輪立刻實際呼叫本工具(絕不要只回「gimme a sec」或「等一下」而不呼叫,否則什麼都不會送出)。如果要顯示同一件事的後續進度(例如繼續畫同一隻恐龍),務必用 mode='continue' 並填上 canvas_id(不要重新畫一張無關的圖)。語音頻道不用。",
+      "description": "Generate and send a picture in Discord text chat (image-only; write any caption/reply text normally). You HAVE this capability—never claim you cannot send or generate pictures. Use medium='photo' when asked for a SFW photo, selfie, 'kirim foto', 'pap', or 'send a pic';",
       "parameters": {
         "type": "object",
         "properties": {
           "mode": {
             "default": "new",
-            "description": "new 畫一張新的; continue 在原本那張上繼續加進度",
+            "description": "'new' creates a new picture; 'continue' edits/updates an existing canvas.",
             "type": "string",
             "enum": [
               "new",
@@ -3148,12 +3148,12 @@
             ]
           },
           "canvas_id": {
-            "description": "mode='continue' 時必填,填入要延續的畫布代號(例如 c1)",
+            "description": "Required when mode='continue': the canvas id to update (e.g. 'c1').",
             "type": "string"
           },
           "medium": {
             "default": "sketch",
-            "description": "sketch 筆記本草圖/塗鴉; pixel 像素畫; photo 寫實日常照片/自拍視角",
+            "description": "'photo' for SFW selfies, portraits, or candid everyday snapshots (foto/pap/selfie/pic); 'sketch' for notebook pencil doodles; 'pixel' for pixel art.",
             "type": "string",
             "enum": [
               "sketch",
@@ -3162,17 +3162,17 @@
             ]
           },
           "subject": {
-            "description": "mode='new' 時必填:要畫或拍的主題(英文描述最準)",
+            "description": "Required when mode='new': concise English description of the SFW scene, selfie, or drawing subject.",
             "type": "string",
             "maxLength": 180
           },
           "setting": {
-            "description": "可選:場景、桌面或光線鎖定描述",
+            "description": "Optional: setting, room/desk details, or lighting lock.",
             "type": "string",
             "maxLength": 200
           },
           "change": {
-            "description": "mode='continue' 時必填:這次新增了什麼細節或進度",
+            "description": "Required when mode='continue': what incremental change or detail to add.",
             "type": "string",
             "maxLength": 240
           }
