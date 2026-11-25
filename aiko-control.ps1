@@ -73,8 +73,8 @@ function Load-Personas() {
     $activeFile = Join-Path $Repo 'profiles\aiko\persona\.active'
     $activeId = 'kuudere'
     if (Test-Path $activeFile) {
-        $lines = Read-SharedText $activeFile | Where-Object { $_.Trim() -ne '' }
-        if ($lines.Count -gt 0) { $activeId = $lines[0].Trim() }
+        $lines = @(Read-SharedText $activeFile | Where-Object { $_.Trim() -ne '' })
+        if ($lines.Count -gt 0) { $activeId = ([string]$lines[0]).Trim() }
     }
     $items = @()
     if (Test-Path $presetsDir) {
@@ -82,12 +82,12 @@ function Load-Personas() {
             $metaFile = Join-Path $dir.FullName 'preset.json'
             if (Test-Path $metaFile) {
                 try {
-                    $raw = [string]::Join("`n", (Read-SharedText $metaFile))
+                    $raw = [string]::Join("`n", [string[]]@(Read-SharedText $metaFile))
                     $meta = $raw | ConvertFrom-Json
-                    $pid = $(if ($meta.id) { [string]$meta.id } else { $dir.Name })
-                    $label = $(if ($meta.label) { [string]$meta.label } else { $pid })
+                    $presetId = $(if ($meta.id) { [string]$meta.id } else { $dir.Name })
+                    $label = $(if ($meta.label) { [string]$meta.label } else { $presetId })
                     $order = $(if ($null -ne $meta.order) { [int]$meta.order } else { 99 })
-                    $items += [PSCustomObject]@{ Id = $pid; Label = $label; Order = $order }
+                    $items += [PSCustomObject]@{ Id = $presetId; Label = $label; Order = $order }
                 } catch { }
             }
         }
