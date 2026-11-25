@@ -76,7 +76,13 @@ import {
   REFUSALS,
 } from "./rules.js";
 import type { Spoken } from "./say.js";
-import { ALL_CHECKS, type OutputChecks, type ScreenedLine, StepText } from "./screens.js";
+import {
+  ALL_CHECKS,
+  type OutputChecks,
+  type ScreenedLine,
+  StepText,
+  type StepTextContext,
+} from "./screens.js";
 import { type Capped, SpendLedger, stepCost } from "./spend.js";
 import { modelSummarise } from "./summarise.js";
 import {
@@ -186,6 +192,80 @@ const ZERO_USAGE: RunUsage = {
 
 class Cancelled extends Error {
   override readonly name = "Cancelled";
+}
+
+const SPEAKER_LINE_RE = /^([^\n<>[\]{}:：]{1,40}?)(?:\([^)\n]*\))?\s*[:：]\s*(.+)$/;
+const IGNORED_SPEAKER_PREFIXES = new Set([
+  "http",
+  "https",
+  "note",
+  "error",
+  "warn",
+  "warning",
+  "time",
+  "date",
+]);
+
+function stepTextContext(
+  base: RunMessages,
+  wake: Wake,
+  ownEntries: readonly EntryInput[],
+): StepTextContext {
+  const speakers = new Set<string>();
+  const userLines: string[] = [];
+  const ownLines: string[] = [];
+
+  if (wake.kind === "addressed") {
+    if (wake.from.name.trim() !== "") speakers.add(wake.from.name.trim());
+    for (const c of wake.callers ?? []) {
+      if (c.from.name.trim() !== "") speakers.add(c.from.name.trim());
+    }
+  }
+
+  for (const msg of [...base.history, ...base.tail]) {
+    if (typeof msg.content !== "string") continue;
+    if (msg.role === "user") {
+      if (msg.content.startsWith("<data") || msg.content.startsWith("⟦")) continue;
+      for (const rawLine of msg.content.split("\n")) {
+        const line = rawLine.trim();
+        if (line === "" || line.startsWith("<") || line.startsWith("[")) continue;
+        const m = SPEAKER_LINE_RE.exec(line);
+        if (m !== null) {
+          const who = (m[1] ?? "").trim();
+          const body = (m[2] ?? "").trim();
+          if (
+            who !== "" &&
+            !IGNORED_SPEAKER_PREFIXES.has(who.toLowerCase()) &&
+            who.split(/\s+/).length <= 3
+          ) {
+            speakers.add(who);
+          }
+          if (body !== "") userLines.push(body);
+        } else {
+          userLines.push(line);
+        }
+      }
+    } else if (msg.role === "assistant") {
+      for (const rawLine of msg.content.split("\n")) {
+        const cleaned = rawLine.replace(/\s*\(被打斷\)\s*$/, "").trim();
+        if (cleaned !== "") ownLines.push(cleaned);
+      }
+    }
+  }
+
+  for (const e of ownEntries) {
+    if (e.kind !== "self" || !e.content) continue;
+    for (const rawLine of e.content.split("\n")) {
+      const cleaned = rawLine.trim();
+      if (cleaned !== "") ownLines.push(cleaned);
+    }
+  }
+
+  return {
+    otherSpeakers: [...speakers],
+    recentUserLines: userLines.slice(-10),
+    recentOwnLines: ownLines.slice(-12),
+  };
 }
 
 /** An entry as `toMessages` reads it, for the messages a run adds after its tail. */
@@ -474,7 +554,11 @@ class Run {
       const offered = this.#offered();
       this.#rounds += 1;
       this.#stepPictures = [];
-      const step = await this.#step(this.#request(base, offered, limit), limit !== null);
+      const step = await this.#step(
+        this.#request(base, offered, limit),
+        limit !== null,
+        stepTextContext(base, this.#wake, this.#entries),
+      );
       if (step.error !== null) {
         failure = step.error;
         break;
@@ -707,8 +791,8 @@ class Run {
 
   // ---- one step ---------------------------------------------------------------------------
 
-  async #step(request: ChatRequest, final: boolean): Promise<Step> {
-    const screen = new StepText(this.#profile.unit, this.#checks);
+  async #step(request: ChatRequest, final: boolean, context: StepTextContext = {}): Promise<Step> {
+    const screen = new StepText(this.#profile.unit, this.#checks, context);
     const step: Step = {
       lines: [],
       ids: [],

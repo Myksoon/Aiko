@@ -76,4 +76,29 @@ describe("ambientPresenceContributor", () => {
     const names = AMBIENT_PRESENCE_PRESETS.map((p) => p.activity?.name).filter(Boolean);
     expect(names).not.toContain("Aseprite");
   });
+
+  it("includes Spotify and non-gaming idle presets (chilling, eating, outside)", () => {
+    const kinds = AMBIENT_PRESENCE_PRESETS.map((p) => p.kind);
+    expect(kinds).toContain("spotify");
+    const notes = AMBIENT_PRESENCE_PRESETS.map((p) => p.idleNote ?? "").join(" ");
+    expect(notes).toContain("chilling");
+    expect(notes).toContain("eating");
+    expect(notes).toContain("outside");
+  });
+
+  it("formats idle snapshot with idleNote cleanly", async () => {
+    const contributor = ambientPresenceContributor(() => ({
+      status: "idle",
+      activityType: null,
+      activityName: null,
+      details: null,
+      state: null,
+      startedAt: 1_000_000,
+      idleNote: "went outside for a bit to get fresh air or food",
+    }));
+    const sections = await contributor.contribute({} as never);
+    expect(sections).toHaveLength(1);
+    expect(sections[0]!.body).toContain("currently went outside for a bit");
+    expect(sections[0]!.body).toContain("not playing any game or music right now");
+  });
 });

@@ -99,6 +99,9 @@ model = "${IMAGE_MODEL:-}"
 cooldown_secs = 20
 max_per_hour = 15
 
+[modules.agent.vision]
+same_author_window_ms = 12000
+
 [modules.agent.voice]
 default_mode = "normal"
 debounce_ms = 700

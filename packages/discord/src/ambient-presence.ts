@@ -34,7 +34,6 @@ const OSU_MODE_MANIA_ASSET = "1216675677894475917";
 
 const BLOXSTRAP_APP_ID = "1005469189907173486";
 const BLOXSTRAP_ROBLOX_ASSET = "1562785727673147413";
-const ROBLOX_NATIVE_APP_ID = "363445589247131668";
 
 const YOUTUBE_MUSIC_APP_ID = "463151177836658699";
 const YOUTUBE_MUSIC_LOGO_ASSET = "463151407512682502"; // ytm_lg
@@ -144,13 +143,15 @@ export interface RichActivityPreset {
 }
 
 export interface AmbientPresencePreset {
-  kind: "youtube-music" | "osu" | "roblox-bloxstrap" | "csp" | "native-game" | "idle";
+  kind: "spotify" | "youtube-music" | "osu" | "roblox-bloxstrap" | "csp" | "native-game" | "idle";
   status: AmbientStatus;
   lateNight: boolean;
   activity: RichActivityPreset | null;
+  idleNote?: string;
 }
 
 export const AMBIENT_PRESENCE_PRESETS: readonly AmbientPresencePreset[] = [
+  // ---- Music (~30%: YouTube Music & Spotify; index 0 kept as YouTube Music) ----
   {
     kind: "youtube-music",
     status: "online",
@@ -172,19 +173,103 @@ export const AMBIENT_PRESENCE_PRESETS: readonly AmbientPresencePreset[] = [
     },
   },
   {
-    kind: "osu",
+    kind: "spotify",
     status: "online",
     lateNight: false,
     activity: {
-      type: ACTIVITY_PLAYING,
-      name: "osu!",
-      applicationId: OSU_LAZER_APP_ID,
+      type: ACTIVITY_LISTENING,
+      name: "Spotify",
     },
   },
   {
-    kind: "osu",
+    kind: "spotify",
+    status: "online",
+    lateNight: true,
+    activity: {
+      type: ACTIVITY_LISTENING,
+      name: "Spotify",
+    },
+  },
+  {
+    kind: "spotify",
+    status: "idle",
+    lateNight: true,
+    activity: {
+      type: ACTIVITY_LISTENING,
+      name: "Spotify",
+    },
+  },
+  {
+    kind: "spotify",
+    status: "online",
+    lateNight: false,
+    activity: {
+      type: ACTIVITY_LISTENING,
+      name: "Spotify",
+    },
+  },
+  // ---- No Game / Chilling, Eating, Going Outside (~40%) ----
+  {
+    kind: "idle",
+    status: "online",
+    lateNight: false,
+    activity: null,
+    idleNote: "just chilling and scrolling on her phone",
+  },
+  {
+    kind: "idle",
+    status: "online",
+    lateNight: true,
+    activity: null,
+    idleNote: "curled up chilling in her room",
+  },
+  {
+    kind: "idle",
+    status: "online",
+    lateNight: false,
+    activity: null,
+    idleNote: "eating a meal and relaxing",
+  },
+  {
+    kind: "idle",
+    status: "online",
+    lateNight: true,
+    activity: null,
+    idleNote: "grabbing late-night snacks and a warm drink",
+  },
+  {
+    kind: "idle",
+    status: "idle",
+    lateNight: false,
+    activity: null,
+    idleNote: "went outside for a bit to get fresh air or food",
+  },
+  {
+    kind: "idle",
+    status: "idle",
+    lateNight: false,
+    activity: null,
+    idleNote: "out running errands / stepped outside",
+  },
+  {
+    kind: "idle",
+    status: "idle",
+    lateNight: false,
+    activity: null,
+    idleNote: "just hanging out away from games",
+  },
+  {
+    kind: "idle",
     status: "dnd",
     lateNight: true,
+    activity: null,
+    idleNote: "resting in bed, taking a break",
+  },
+  // ---- Games & Drawing (~30%, occasional rather than constant) ----
+  {
+    kind: "osu",
+    status: "online",
+    lateNight: false,
     activity: {
       type: ACTIVITY_PLAYING,
       name: "osu!",
@@ -239,46 +324,6 @@ export const AMBIENT_PRESENCE_PRESETS: readonly AmbientPresencePreset[] = [
       type: ACTIVITY_PLAYING,
       name: "Roblox",
       applicationId: BLOXSTRAP_APP_ID,
-      details: "Fisch 🧶 [FELINA]",
-      state: "by Fisching",
-      assets: {
-        large_image: BLOXSTRAP_ROBLOX_ASSET,
-        large_text: "Fisch 🧶 [FELINA]",
-        small_image: BLOXSTRAP_ROBLOX_ASSET,
-        small_text: "Roblox",
-      },
-      externalLargeImageUrl:
-        "https://tr.rbxcdn.com/180DAY-a7f09dce7a2521275ccc301c5623daf1/512/512/Image/Png/noFilter",
-    },
-  },
-  {
-    kind: "roblox-bloxstrap",
-    status: "online",
-    lateNight: false,
-    activity: {
-      type: ACTIVITY_PLAYING,
-      name: "Roblox",
-      applicationId: BLOXSTRAP_APP_ID,
-      details: "Brookhaven 🏡RP",
-      state: "by Brookhaven by Voldex",
-      assets: {
-        large_image: BLOXSTRAP_ROBLOX_ASSET,
-        large_text: "Brookhaven 🏡RP",
-        small_image: BLOXSTRAP_ROBLOX_ASSET,
-        small_text: "Roblox",
-      },
-      externalLargeImageUrl:
-        "https://tr.rbxcdn.com/180DAY-d35bfa465c0ade2afd7c320d17b7474b/512/512/Image/Png/noFilter",
-    },
-  },
-  {
-    kind: "roblox-bloxstrap",
-    status: "online",
-    lateNight: false,
-    activity: {
-      type: ACTIVITY_PLAYING,
-      name: "Roblox",
-      applicationId: BLOXSTRAP_APP_ID,
       details: "🍕Work at a Pizza Place",
       state: "by Dued1 ☑️",
       assets: {
@@ -292,19 +337,9 @@ export const AMBIENT_PRESENCE_PRESETS: readonly AmbientPresencePreset[] = [
     },
   },
   {
-    kind: "native-game",
+    kind: "csp",
     status: "online",
     lateNight: false,
-    activity: {
-      type: ACTIVITY_PLAYING,
-      name: "Roblox",
-      applicationId: ROBLOX_NATIVE_APP_ID,
-    },
-  },
-  {
-    kind: "csp",
-    status: "dnd",
-    lateNight: true,
     activity: {
       type: ACTIVITY_PLAYING,
       name: "CLIP STUDIO PAINT",
@@ -314,33 +349,9 @@ export const AMBIENT_PRESENCE_PRESETS: readonly AmbientPresencePreset[] = [
     },
   },
   {
-    kind: "csp",
-    status: "online",
-    lateNight: false,
-    activity: {
-      type: ACTIVITY_PLAYING,
-      name: "CLIP STUDIO PAINT",
-      applicationId: CSP_APP_ID,
-      details: "Illustration4.clip",
-      state: "CLIP STUDIO PAINT EX",
-    },
-  },
-  {
-    kind: "csp",
-    status: "online",
-    lateNight: false,
-    activity: {
-      type: ACTIVITY_PLAYING,
-      name: "CLIP STUDIO PAINT",
-      applicationId: CSP_APP_ID,
-      details: "character_sheet.clip",
-      state: "CLIP STUDIO PAINT EX",
-    },
-  },
-  {
     kind: "native-game",
     status: "online",
-    lateNight: false,
+    lateNight: true,
     activity: {
       type: ACTIVITY_PLAYING,
       name: "Stardew Valley",
@@ -356,30 +367,6 @@ export const AMBIENT_PRESENCE_PRESETS: readonly AmbientPresencePreset[] = [
       name: "Minecraft",
       applicationId: MINECRAFT_APP_ID,
     },
-  },
-  {
-    kind: "idle",
-    status: "online",
-    lateNight: false,
-    activity: null,
-  },
-  {
-    kind: "idle",
-    status: "online",
-    lateNight: false,
-    activity: null,
-  },
-  {
-    kind: "idle",
-    status: "idle",
-    lateNight: true,
-    activity: null,
-  },
-  {
-    kind: "idle",
-    status: "dnd",
-    lateNight: true,
-    activity: null,
   },
 ];
 
@@ -429,6 +416,7 @@ export interface AmbientPresenceSnapshot {
   details: string | null;
   state: string | null;
   startedAt: number;
+  idleNote?: string | null;
 }
 
 export const AMBIENT_PRESENCE_CONTRIBUTOR = "discord_presence";
@@ -456,9 +444,12 @@ export function ambientPresenceContributor(
         body =
           `Your live Discord profile currently shows: ${verb} ${snap.activityName}` +
           `${extra ? ` (${extra})` : ""} (status: ${snap.status}, started ${minsAgo}m ago). ` +
-          `Background context only: if asked directly, answer honestly (never deny it), or bring it up naturally once as a conversation topic/question—do NOT keep repeating what you are currently doing as filler or an excuse on unrelated turns.`;
+          `Background context only: ONLY mention this if someone directly asks what you're doing or playing (never deny it); do NOT bring it up unprompted or repeat it in normal chat.`;
       } else {
-        body = `Your live Discord profile currently shows: ${snap.status}, not playing any game or music right now (just hanging out).`;
+        const activityNote = snap.idleNote ? `currently ${snap.idleNote}` : "just hanging out";
+        body =
+          `Your live Discord profile currently shows: ${snap.status}, not playing any game or music right now (${activityNote}). ` +
+          `Background context only: only mention if someone asks what you're up to, never repeat it across turns.`;
       }
       return [
         {
@@ -548,27 +539,32 @@ export function formatPresencePayload(
     };
   }
 
-  if (preset.kind === "youtube-music") {
+  if (preset.kind === "youtube-music" || preset.kind === "spotify") {
     const track =
       MUSIC_TRACKS[
         ((trackIndex % MUSIC_TRACKS.length) + MUSIC_TRACKS.length) % MUSIC_TRACKS.length
       ]!;
+    const isSpotify = preset.kind === "spotify";
     return {
       status: preset.status,
       activities: [
         {
           type: ACTIVITY_LISTENING,
-          name: "YouTube Music",
-          application_id: YOUTUBE_MUSIC_APP_ID,
+          name: isSpotify ? "Spotify" : "YouTube Music",
+          ...(isSpotify ? {} : { application_id: YOUTUBE_MUSIC_APP_ID }),
           details: track.title,
           state: track.artist,
           timestamps: { start: nowMs, end: nowMs + track.durationMs },
-          assets: {
-            large_image: YOUTUBE_MUSIC_LOGO_ASSET,
-            large_text: "YouTube Music",
-            small_image: YOUTUBE_MUSIC_PLAY_ASSET,
-            small_text: "Playing",
-          },
+          ...(isSpotify
+            ? {}
+            : {
+                assets: {
+                  large_image: YOUTUBE_MUSIC_LOGO_ASSET,
+                  large_text: "YouTube Music",
+                  small_image: YOUTUBE_MUSIC_PLAY_ASSET,
+                  small_text: "Playing",
+                },
+              }),
         },
       ],
     };
@@ -681,7 +677,8 @@ export async function runAmbientPresenceLoop(options: AmbientPresenceLoopOptions
     const sessionDurationMs = Math.round(mins * 60_000);
     const sessionEndMs = sessionStartMs + sessionDurationMs;
 
-    if (rich && preset.kind === "youtube-music") {
+    if (rich && (preset.kind === "youtube-music" || preset.kind === "spotify")) {
+      const serviceName = preset.kind === "spotify" ? "Spotify" : "YouTube Music";
       let remaining = sessionDurationMs;
       while (!signal.aborted && remaining > 0) {
         const ts = now();
@@ -701,7 +698,7 @@ export async function runAmbientPresenceLoop(options: AmbientPresenceLoopOptions
             onUpdate?.({
               status: preset.status,
               activityType: ACTIVITY_LISTENING,
-              activityName: "YouTube Music",
+              activityName: serviceName,
               details: track.title,
               state: track.artist,
               startedAt: ts,
@@ -709,7 +706,7 @@ export async function runAmbientPresenceLoop(options: AmbientPresenceLoopOptions
             log.info(
               {
                 status: preset.status,
-                activity: "YouTube Music",
+                activity: serviceName,
                 details: track.title,
                 state: track.artist,
                 rich,
@@ -718,7 +715,7 @@ export async function runAmbientPresenceLoop(options: AmbientPresenceLoopOptions
             );
           } catch (error) {
             log.warn(
-              { error: errorMessage(error), activity: "YouTube Music" },
+              { error: errorMessage(error), activity: serviceName },
               "failed to update ambient discord presence",
             );
           }
@@ -804,6 +801,7 @@ export async function runAmbientPresenceLoop(options: AmbientPresenceLoopOptions
           details: rich ? (preset.activity?.details ?? null) : null,
           state: rich ? (preset.activity?.state ?? null) : null,
           startedAt: sessionStartMs,
+          idleNote: preset.idleNote ?? null,
         });
         log.info(
           {

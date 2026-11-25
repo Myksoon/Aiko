@@ -78,6 +78,71 @@ export const ALL_CHECKS: OutputChecks = {
   selfTalk: true,
 };
 
+/** Conversation context used at the send boundary to stop speaker-echoes and repeat loops. */
+export interface StepTextContext {
+  /** Display names or handles of other participants in this conversation. */
+  otherSpeakers?: readonly string[];
+  /** Recent user message texts (without speaker prefix). */
+  recentUserLines?: readonly string[];
+  /** Recent lines Aiko already sent, to drop near-verbatim repetitions. */
+  recentOwnLines?: readonly string[];
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeEcho(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[\p{P}\p{S}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function wordTokens(s: string): string[] {
+  const norm = normalizeEcho(s);
+  return norm === "" ? [] : norm.split(" ");
+}
+
+function buildSpeakerMatcher(speakers: readonly string[] | undefined): RegExp | null {
+  const names = (speakers ?? [])
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 2 || [...s].some((c) => (c.codePointAt(0) ?? 0) > 0x7f))
+    .map(escapeRegExp);
+  if (names.length === 0) return null;
+  // Match lines scripted as `<Speaker>: text` or `<Speaker>(tag): text` at line start.
+  return new RegExp(`^@?(?:${names.join("|")})(?:\\([^)\\n]{1,40}\\))?\\s*[:：]\\s*\\S`, "i");
+}
+
+function isEchoOrRepeat(
+  text: string,
+  speakerRe: RegExp | null,
+  userNorms: readonly string[],
+  ownTokens: readonly (readonly string[])[],
+): boolean {
+  const trimmed = text.trim();
+  if (speakerRe?.test(trimmed)) return true;
+  const norm = normalizeEcho(trimmed);
+  if (norm === "") return false;
+  if (norm.length >= 12 && userNorms.includes(norm)) return true;
+  const tokens = wordTokens(trimmed);
+  if (norm.length < 22 || tokens.length < 5) return false;
+  const tokenSet = new Set(tokens);
+  for (const prev of ownTokens) {
+    if (prev.length < 5) continue;
+    const prevSet = new Set(prev);
+    let shared = 0;
+    for (const t of tokenSet) if (prevSet.has(t)) shared += 1;
+    const union = tokenSet.size + prevSet.size - shared;
+    const jaccard = union > 0 ? shared / union : 0;
+    const minLen = Math.min(tokenSet.size, prevSet.size);
+    const containment = minLen > 0 ? shared / minLen : 0;
+    if (jaccard >= 0.72 || containment >= 0.85) return true;
+  }
+  return false;
+}
+
 export class StepText {
   readonly #checks: OutputChecks;
   readonly #parser: ExpressionParser;
@@ -86,6 +151,9 @@ export class StepText {
   readonly #sentences: boolean;
   readonly #splitter = new SentenceSplitter();
   readonly #links = new LinkSplitter();
+  readonly #speakerRe: RegExp | null;
+  readonly #userNorms: readonly string[];
+  readonly #ownTokens: readonly (readonly string[])[];
   #buffer = "";
   #emotion: string | null = null;
   #seenText = false;
@@ -101,8 +169,14 @@ export class StepText {
   tagsStripped = 0;
   /** Lines (sentences, spoken) left out because they read like a feel block without its tags. */
   feelCut = 0;
+  /** Lines dropped because they echoed a speaker/user line or repeated a recent reply. */
+  echoOrRepeatCut = 0;
 
-  constructor(unit: TextUnit = "line", checks: OutputChecks = ALL_CHECKS) {
+  constructor(
+    unit: TextUnit = "line",
+    checks: OutputChecks = ALL_CHECKS,
+    context: StepTextContext = {},
+  ) {
     this.#checks = checks;
     this.#parser = new ExpressionParser({
       thinkingBlock: checks.thinkingBlock,
@@ -110,6 +184,11 @@ export class StepText {
     });
     this.#screen = new ReplyScreen<ScreenedLine>(checks.leakScreen, checks.selfTalk);
     this.#sentences = unit === "sentence";
+    this.#speakerRe = buildSpeakerMatcher(context.otherSpeakers);
+    this.#userNorms = (context.recentUserLines ?? [])
+      .map(normalizeEcho)
+      .filter((s) => s.length >= 12);
+    this.#ownTokens = (context.recentOwnLines ?? []).map(wordTokens).filter((t) => t.length >= 5);
   }
 
   /**
@@ -189,9 +268,16 @@ export class StepText {
       if (this.#silence) continue;
       switch (segment.type) {
         case "text":
-          if (segment.text.trim() !== "") this.#seenText = true;
           for (const piece of this.#fence.push(segment.text)) {
             out.push(...this.#piece(piece.code, piece.text));
+          }
+          if (
+            this.#kept ||
+            (this.#buffer.trim() !== "" &&
+              !isFeelLine(this.#buffer.trim()) &&
+              !this.#isDroppedLine(this.#buffer.trim()))
+          ) {
+            this.#seenText = true;
           }
           break;
         case "emotion":
@@ -203,7 +289,10 @@ export class StepText {
           this.#emotion = segment.emotion;
           break;
         case "silence":
-          if (!this.#seenText) this.#silence = true;
+          if (!this.#seenText) {
+            this.#buffer = "";
+            this.#silence = true;
+          }
           break;
         case "tool":
           this.tagsStripped += 1;
@@ -285,6 +374,10 @@ export class StepText {
     return [{ text, emotion: this.#emotion }];
   }
 
+  #isDroppedLine(text: string): boolean {
+    return isEchoOrRepeat(text, this.#speakerRe, this.#userNorms, this.#ownTokens);
+  }
+
   #line(raw: string): ScreenedLine[] {
     const text = raw.trim();
     if (text === "") return [];
@@ -292,7 +385,12 @@ export class StepText {
       this.feelCut += 1;
       return [];
     }
+    if (this.#isDroppedLine(text)) {
+      this.echoOrRepeatCut += 1;
+      return [];
+    }
     this.#kept = true;
+    this.#seenText = true;
     return this.#screen.push({ text, emotion: this.#emotion }).send;
   }
 }

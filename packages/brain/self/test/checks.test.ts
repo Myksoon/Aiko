@@ -106,4 +106,37 @@ describe("the output checks", () => {
     await failing.run();
     expect(failing.outlet.texts()).toEqual([]);
   });
+
+  it("drops lines echoing another speaker or repeating recent replies, preserving trailing silence", () => {
+    const screen = new StepText("line", ALL_CHECKS, {
+      otherSpeakers: ["Hika", "Yel"],
+      recentUserLines: ["Sawit", "Emang nama Roblox mu apa aiko"],
+      recentOwnLines: [
+        "aku abis kelarin shift Pizza Place nih, sekarang balik osu! mau FC lagi",
+        "yel muka gifnya capek banget wkwk, sama kayak kamu dari tadi ngeladenin aku",
+      ],
+    });
+    const out = [
+      ...screen.push("Yel: kamu tuh aiko, satu nama aja lupa\n"),
+      ...screen.push("Hika: Yel, dia tuh emang kayak gitu\n"),
+      ...screen.push(
+        "aku abis kelarin shift Pizza Place nih, sekarang balik osu! mau FC lagi hehe\n",
+      ),
+      ...screen.push("yel, nama robloxku aikoofc hehe\n"),
+      ...screen.finish(),
+    ].map((l) => l.text);
+    expect(out).toEqual(["yel, nama robloxku aikoofc hehe"]);
+    expect(screen.echoOrRepeatCut).toBe(3);
+
+    const silentEcho = new StepText("line", ALL_CHECKS, {
+      otherSpeakers: ["Hika"],
+      recentUserLines: ["Sawit"],
+    });
+    const silentOut = [
+      ...silentEcho.push("Hika: Sawit\n\n<silence/>\n"),
+      ...silentEcho.finish(),
+    ].map((l) => l.text);
+    expect(silentOut).toEqual([]);
+    expect(silentEcho.silence).toBe(true);
+  });
 });

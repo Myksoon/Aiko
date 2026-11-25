@@ -98,10 +98,9 @@ jobs:
           if pgrep -fa "node_modules/miyoria/dist/main.js"; then echo "::error::processes left after down"; exit 1; fi
       - name: Logs of the packed CLI run
         if: failure()
-        working-directory: ${{ runner.temp }}/smoke
         run: |
-          tail -n 80 data/host/logs/*.log || true
-          npx --no-install miyoria down || true
+          tail -n 80 "$RUNNER_TEMP"/smoke/data/host/logs/*.log 2>/dev/null || true
+          cd "$RUNNER_TEMP/smoke" 2>/dev/null && npx --no-install miyoria down 2>/dev/null || true
       # The same with pnpm, which is what the docs show first.
       - name: Smoke-test the packed CLI with pnpm
         working-directory: ${{ runner.temp }}
