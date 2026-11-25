@@ -1,17 +1,34 @@
+<div align="center">
+
+<img src="docs/assets/aiko-logo-rounded.png" width="180" alt="Aiko">
+
+<h1 align="center">Aiko</h1>
+
+<p align="center"><b>Hi! I'm Aiko</b> — an autonomous AI companion for Discord, open source</p>
+
 <p align="center">
-  <img src="docs/assets/aiko-logo.jpg" width="220" alt="Aiko">
+  <img src="https://img.shields.io/badge/Made%20with-Love-ec6aa8?style=flat-square" alt="Made with Love">
+  <a href="https://github.com/Myksoon/Aiko"><img src="https://img.shields.io/badge/GitHub-Myksoon%2FAiko-181717?style=flat-square&logo=github&logoColor=white" alt="GitHub Myksoon/Aiko"></a>
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Docker-0078d4?style=flat-square" alt="Platform Windows and Docker">
+  <img src="https://img.shields.io/badge/node-24-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js 24">
+  <img src="https://img.shields.io/badge/python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+">
 </p>
 
-# Aiko
+<p align="center">
+  <img src="https://img.shields.io/badge/core-TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript core">
+  <img src="https://img.shields.io/badge/store-SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite store">
+  <img src="https://img.shields.io/badge/platform-Discord-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord">
+  <img src="https://img.shields.io/badge/deploy-Docker-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker">
+</p>
 
-Aiko is an autonomous AI companion for Discord that chats, reacts to images, sends reaction GIFs, joins voice channels, and manages memory inside guardrails you configure.
+<p align="center">
+  <a href="https://github.com/Myksoon/Aiko/actions/workflows/ci.yml"><img src="https://github.com/Myksoon/Aiko/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="https://github.com/Myksoon/Aiko/stargazers"><img src="https://img.shields.io/github/stars/Myksoon/Aiko?style=flat-square&logo=github" alt="GitHub stars"></a>
+</p>
 
-![Node.js 24](https://img.shields.io/badge/Node.js-24-339933.svg?style=flat-square&logo=nodedotjs&logoColor=white)
-![TypeScript](https://img.shields.io/badge/Core-TypeScript-3178C6.svg?style=flat-square&logo=typescript&logoColor=white)
-![Python](https://img.shields.io/badge/Workers-Python-3776AB.svg?style=flat-square&logo=python&logoColor=white)
-![SQLite](https://img.shields.io/badge/Store-SQLite-003B57.svg?style=flat-square&logo=sqlite&logoColor=white)
-![Discord](https://img.shields.io/badge/Platform-Discord-5865F2.svg?style=flat-square&logo=discord&logoColor=white)
-![Docker](https://img.shields.io/badge/Deploy-Docker-2496ED.svg?style=flat-square&logo=docker&logoColor=white)
+</div>
+
+Aiko is an autonomous AI companion for Discord that chats, reacts to images, sends reaction GIFs, joins voice channels, and manages memory inside guardrails you configure. You can switch between three personas (Kuudere, E-Girl, Tsundere) from the Windows control window.
 
 Aiko runs on a modular TypeScript core backed by SQLite, with optional Python GPU workers for speech recognition, voice cloning, and singing. Every conversation, decision, and outgoing message passes through explicit safety, moderation, and language filters before reaching Discord.
 
