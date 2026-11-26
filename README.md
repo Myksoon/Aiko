@@ -4,7 +4,7 @@
 
 <h1 align="center">Aiko</h1>
 
-<p align="center"><b>Hi! I'm Aiko</b> — an autonomous AI companion for Discord, open source</p>
+<p align="center"><b>Hi! I'm Aiko</b> - an autonomous AI companion for Discord, open source</p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Made%20with-Love-ec6aa8?style=flat-square" alt="Made with Love">
